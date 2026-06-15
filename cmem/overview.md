@@ -62,33 +62,39 @@ ABI kind is **auto-detected** from the module's exports: `cabi_realloc` present 
 - **Imports:** host callbacks registered into a `Linker<()>` under the `"env"` namespace before
   instantiation; memory resolved from `caller.get_export("memory")` at call time.
 
-### ⚠️ SPEC conformance status — NEEDS ALIGNMENT TO SPEC 3.0.0
+### ✅ SPEC conformance status — ALIGNED TO SPEC 3.0.0 (2026-06-15, VERIFIED)
 
-The cross-language `SPEC.md` is now at **v3.0.0 (2026-06-15)** — a **BREAKING** change. String /
+The cross-language `SPEC.md` is at **v3.0.0 (2026-06-15)** — a **BREAKING** change. String /
 aggregate **RETURNS** moved from the old **caller-allocated out-parameter** convention to the
 **canonical callee-allocated** convention: the export returns an i32 pointer to a
-callee-allocated `[ptr, len]` pair, and the host must read that pair and then call a paired
-**`cabi_post_<name>(retPtr)`** export to release the returned memory.
+callee-allocated `[ptr, len]` pair, and the host reads that pair then calls a paired
+**`cabi_post_<name>(retArea)`** export to release the returned memory.
 
-**This port predates SPEC 3.0.0 and still implements the OLD conventions:**
+**This port now implements the SPEC 3.0.0 convention** (Component / Canonical profile):
 
-- **Component / Canonical profile — OLD caller-allocated out-param.** In
-  **`src/abi.rs`, `call_component_export` (string-return branch, lines ~248–256)**: the host
-  allocates an 8-byte return area via `cabi_realloc(0,0,4,8)`, **passes it as a trailing i32 arg**,
-  calls the export (void), then reads the little-endian `[ptr, len]` pair out of that area. There is
-  **no `cabi_post_<name>` call** — `cabi_post` appears nowhere in `src/`.
-- **Wasic profile — globals side-channel.** In **`src/abi.rs`, `call_wasic_export` (lines ~191–201)**:
-  calls the export (void) then reads `__str_ret_ptr` / `__str_ret_len` globals. (Unchanged by the
-  SPEC return-ABI change, but noted for completeness.)
+- **`src/abi.rs`, `call_component_export` (string-return branch).** Calls the export with ONLY the
+  encoded params (no trailing return area), captures the returned `i32` (`ret_area`), reads the
+  little-endian `[ptr, len]` pair from that pointer, decodes the UTF-8 bytes into an owned `String`
+  (the copy keeps it valid past the release), then calls `cabi_post_<camel_name>(ret_area)` —
+  looked up via `instance.get_typed_func::<i32, ()>` and **skipped if absent**.
+- **`src/abi.rs`, `wit_to_wasm_results`.** A `string` return now derives a single `i32` wasm
+  result type (was an empty result / void-with-out-param).
+- **String PARAMS unchanged** — UTF-8 → `cabi_realloc(0,0,1,len)` → write → pass `(ptr, len)`.
+- **Wasic profile unchanged** — `call_wasic_export` still reads `__str_ret_ptr` / `__str_ret_len`
+  globals; that is a separate code path and the SPEC return-ABI change does not touch it.
 
-The bundled reference under `upstream/universalWasmLoader-js/SPEC.md` in this repo is still the
-**v2.0.0** copy (header says `Version: 2.0.0`), i.e. the upstream snapshot has not been refreshed to
-3.0.0 here either.
+**Fixture:** `tests/strings_50.{wasm,wit}` re-sourced from the new-ABI wasmtk bindgen fixture
+(`greet`/`shout` now `(result i32)` with companion `cabi_post_greet` / `cabi_post_shout` exports).
+`math_50` / `booleans_50` / `imports_50` unchanged.
 
-**Action for a future session:** update `call_component_export` to the SPEC 3.0.0 callee-allocated
-return convention (read the returned `[ptr,len]` pointer, then invoke `cabi_post_<camel_name>`),
-refresh the bundled upstream SPEC/reference, regenerate or re-source the string fixtures if their ABI
-changed, and re-run `cargo test`.
+**The bundled reference `upstream/universalWasmLoader-js/SPEC.md` has been refreshed to v3.0.0**
+(header + §4 return-marshalling table + §5 callee-allocated string-return steps). NOTE: the bundled
+`upstream/.../abi.js` JS source itself is still the v2.0.0 snapshot (old out-param) and was not
+rewritten — it is a vendored reference, not built/run here.
+
+**Verification:** `cargo test` (wasmtime v28 crate present) → **24/24 spec assertions pass**,
+including the three string conformance tests (`str_greet` → `Hello, World!`, `str_shout` → `hihi`,
+`str_len` → `5`) and `interface_strings`, against the new fixture under the new ABI.
 
 ## Tests & build/release
 

@@ -57,7 +57,9 @@ fn wit_to_wasm_results(result: &Option<WitType>) -> Vec<ValType> {
         Some(WitType::S64)    => vec![ValType::I64],
         Some(WitType::F32)    => vec![ValType::F32],
         Some(WitType::F64)    => vec![ValType::F64],
-        Some(WitType::Str)    => vec![],
+        // SPEC 3.0.0: a string return is a single i32 pointer to a
+        // callee-allocated [ptr, len] pair (callee-allocated convention).
+        Some(WitType::Str)    => vec![ValType::I32],
         _                     => vec![ValType::I32],
     }
 }
@@ -246,14 +248,36 @@ pub fn call_component_export(
     }
 
     if func.result == Some(WitType::Str) {
-        let ret_buf = cabi.call(&mut *store, (0, 0, 4, 8))?;
-        wasm_args.push(wasmtime::Val::I32(ret_buf));
-        wasm_fn.call(&mut *store, &wasm_args, &mut [])?;
-        let data = mem.data(&*store);
-        let b = ret_buf as usize;
-        let ret_ptr = i32::from_le_bytes(data[b..b+4].try_into()?) as u32;
-        let ret_len = i32::from_le_bytes(data[b+4..b+8].try_into()?) as u32;
-        return Ok(WasmVal::Str(read_str(data, ret_ptr, ret_len)?));
+        // SPEC 3.0.0 — callee-allocated string returns.
+        // The export returns an i32 pointer to a callee-allocated 8-byte
+        // [ptr, len] pair. Call with ONLY the encoded params (no trailing
+        // return area), capture the returned i32, read+decode the pair, then
+        // release the returned memory via the paired `cabi_post_<name>` export.
+        let mut results = [wasmtime::Val::I32(0)];
+        wasm_fn.call(&mut *store, &wasm_args, &mut results)?;
+        let ret_area = results[0].unwrap_i32();
+
+        let decoded = {
+            let data = mem.data(&*store);
+            let b = ret_area as usize;
+            if b + 8 > data.len() {
+                return Err(anyhow!("string return area OOB ret_area={ret_area}"));
+            }
+            let ret_ptr = i32::from_le_bytes(data[b..b + 4].try_into()?) as u32;
+            let ret_len = i32::from_le_bytes(data[b + 4..b + 8].try_into()?) as u32;
+            // Decode copies the bytes into an owned String, so it remains valid
+            // after `cabi_post_<name>` releases the callee allocation below.
+            read_str(data, ret_ptr, ret_len)?
+        };
+
+        // Release the returned memory: call `cabi_post_<camel_name>(ret_area)`
+        // if the module exports it; tolerate its absence.
+        let post_name = format!("cabi_post_{}", func.camel_name);
+        if let Ok(post) = instance.get_typed_func::<i32, ()>(&mut *store, &post_name) {
+            post.call(&mut *store, ret_area)?;
+        }
+
+        return Ok(WasmVal::Str(decoded));
     }
 
     let n = if func.result.is_some() { 1 } else { 0 };
