@@ -206,6 +206,43 @@ All 24 assertions pass. The suite covers numeric, bool, string, host-import, sin
 
 ---
 
+## Releasing (crates.io)
+
+The crate version lives in **`Cargo.toml`** (`[package].version`) — the single source of truth.
+
+```sh
+scripts/bump.sh            # patch:  0.1.0 -> 0.1.1   (default)
+scripts/bump.sh minor      # minor:  0.1.0 -> 0.2.0
+scripts/bump.sh major      # major:  0.1.0 -> 1.0.0
+scripts/bump.sh --dry-run  # print the next version without writing
+```
+
+After bumping, commit the change, then tag and push to trigger publishing:
+
+```sh
+scripts/release.sh         # tags vX.Y.Z from Cargo.toml and pushes -> CI
+```
+
+`scripts/release.sh` never runs `cargo publish` locally — the tag push triggers
+[`.github/workflows/publish.yml`](.github/workflows/publish.yml), which builds,
+runs `cargo test` as a gate, and runs `cargo publish` on a GitHub runner.
+
+> The publish workflow is written entirely with plain `run:` steps (checkout via
+> `git clone`, toolchain via the rustup curl installer). This org's GitHub Actions
+> policy only permits `jrmarcum`-owned actions; any third-party `uses:` step causes
+> a `startup_failure` (nothing runs, nothing reaches crates.io). Do not add `uses:`.
+
+### Required one-time owner setup (before the first publish)
+
+1. **`CARGO_REGISTRY_TOKEN` repo secret** — create a crates.io API token at
+   <https://crates.io/settings/tokens> (scope: publish-new + publish-update), then add it
+   under repo **Settings → Secrets and variables → Actions → New repository secret**, named
+   exactly `CARGO_REGISTRY_TOKEN`.
+2. **Crate name** — `universal-wasm-loader` must be available (first publish) or already
+   owned by your crates.io account. Verify at <https://crates.io/crates/universal-wasm-loader>.
+
+---
+
 ## Ecosystem
 
 This crate is part of the [polyglot WASM ecosystem](https://github.com/jrmarcum/wasmtk):

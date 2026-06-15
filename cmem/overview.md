@@ -103,7 +103,34 @@ including the three string conformance tests (`str_greet` → `Hello, World!`, `
   singleton identity, pool acquire/release, `bind`, and `wasm_interface!`. All tests are sync
   `#[test]` except the two `InstancePool` tests which are `#[tokio::test]`.
 - **Build:** no build step beyond cargo — `src/*.rs` are the source of truth.
-- **Release flow:** standard cargo publish to crates.io (version in `Cargo.toml`).
+- **Release flow (crates.io):** version lives in **`Cargo.toml`** (`[package].version`, single
+  source of truth). Bump → tag → push → CI publishes.
+  - **`scripts/bump.sh [patch|minor|major] [--dry-run]`** — raises the first `version = "X.Y.Z"`
+    in `Cargo.toml` (patch is default). Pure bash + awk (no `cargo-edit` dependency); `--dry-run`
+    prints the next version without writing. `cargo set-version --bump <kind>` (cargo-edit) is an
+    equivalent if preferred. NOTE: avoid `next` as an awk variable name — it is a gawk reserved
+    word (the script uses `nextver`).
+  - **`scripts/release.sh`** — reads the `Cargo.toml` version, commits any pending bump, then
+    `git tag -f vX.Y.Z` + `git push` + `git push -f origin vX.Y.Z`. Never runs `cargo publish`
+    locally — the tag push triggers CI. Mirrors the JS reference's `deno task publish`.
+  - **`.github/workflows/publish.yml`** — triggered on `push: tags: ["v*"]`. **`run:`-only**
+    (this org's Actions policy permits only `jrmarcum`-owned actions; any third-party `uses:`
+    step → `startup_failure`, nothing runs, nothing reaches crates.io). Steps, all plain `run:`:
+    `git clone` checkout (token-auth, `--branch ${{ github.ref_name }}`) → rustup curl installer
+    (`~/.cargo/bin` appended to `$GITHUB_PATH`) → `cargo build --release --locked` →
+    `cargo test --locked` (gate) → `cargo publish --locked` with `CARGO_REGISTRY_TOKEN` env from
+    `${{ secrets.CARGO_REGISTRY_TOKEN }}` (workflow errors out if the secret is empty) → optional
+    `gh release create` (pre-installed `gh`, `run:`). Do NOT reintroduce `uses:`.
+  - **Validation done (not published):** `scripts/bump.sh --dry-run` for patch/minor/major all
+    compute correctly; a real `bump.sh patch` wrote `0.1.1` and was reverted via
+    `git checkout -- Cargo.toml` (restored `0.1.0`); `cargo publish --dry-run --locked
+    --allow-dirty` packaged 26 files and compiled clean, aborting upload as expected.
+  - **REQUIRED one-time owner setup before first publish:**
+    1. **`CARGO_REGISTRY_TOKEN` GitHub repo secret** — from a crates.io API token
+       (<https://crates.io/settings/tokens>, publish scope); add under repo Settings → Secrets
+       and variables → Actions, named exactly `CARGO_REGISTRY_TOKEN`.
+    2. **Crate name `universal-wasm-loader`** must be available (first publish) or already owned
+       by the publishing crates.io account.
 
 ## Notable invariants / traps (carried from CLAUDE.md)
 

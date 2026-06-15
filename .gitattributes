@@ -1,0 +1,2 @@
+# Shell scripts must stay LF so their shebang works on Unix/CI runners.
+*.sh text eol=lf
