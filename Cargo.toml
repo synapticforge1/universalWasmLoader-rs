@@ -8,6 +8,15 @@ repository = "https://github.com/jrmarcum/universalWasmLoader-rs"
 keywords = ["wasm", "webassembly", "wit", "wasmtime", "loader"]
 categories = ["wasm", "api-bindings"]
 readme = "README.md"
+exclude = [
+    "CLAUDE.md",
+    "PORT_PROMPT.md",
+    "cmem/",
+    "scripts/",
+    "upstream/",
+    ".github/",
+    ".gitattributes",
+]
 
 [dependencies]
 wasmtime = "28"
