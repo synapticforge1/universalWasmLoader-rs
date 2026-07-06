@@ -22,7 +22,8 @@ types (numbers direct, strings/bools marshalled) without writing any `wasmtime` 
 | `src/abi.rs` | ABI translation: import linker (`link_import_env`) + export callers (`call_wasic_export`, `call_component_export`, `call_raw_export`); `WasmVal` value enum; `HostCallback` type |
 | `src/wit_parser.rs` | Regex-based WIT parser (no parser deps); each `WitFunc` carries three name forms — `name` (kebab), `camel_name` (the actual WASM export name), `snake_name` (the Rust API key) |
 | `src/types.rs` | Type-conversion traits (`IntoWasmVal`/`FromWasmVal`/`WasmArgs`/`FromWasmArgs`) and `host_fn` helper |
-| `tests/spec_tests.rs` | 24-assertion suite |
+| `src/wasi.rs` | **SPEC §10.2** minimal WASI-P1 shim: `link_wasi_shim(&mut Linker<()>)` registers the small `wasi_snapshot_preview1` subset via `linker.func_wrap` (`fd_write`→stdout/stderr, `proc_exit`, `random_get`, `clock_time_get`, environ/args, `fd_close`/`fd_seek`/`fd_fdstat_get`). Hand-rolled on the existing `Store<()>` — deliberately **avoids** `wasmtime-wasi`/`WasiP1Ctx` (which would force `Store<WasiP1Ctx>`); minimal-invasiveness choice |
+| `tests/spec_tests.rs` | 26-assertion suite (incl. 2 §10 tests) |
 
 Fixtures in `tests/` are `wasmtk modc` (Phase 50 bindgen) outputs: `math_50`, `booleans_50`,
 `strings_50`, `imports_50` (each `.wasm` + `.wit`). Do not hand-edit fixtures.
@@ -92,16 +93,30 @@ callee-allocated `[ptr, len]` pair, and the host reads that pair then calls a pa
 `upstream/.../abi.js` JS source itself is still the v2.0.0 snapshot (old out-param) and was not
 rewritten — it is a vendored reference, not built/run here.
 
-**Verification:** `cargo test` (wasmtime v28 crate present) → **24/24 spec assertions pass**,
-including the three string conformance tests (`str_greet` → `Hello, World!`, `str_shout` → `hihi`,
-`str_len` → `5`) and `interface_strings`, against the new fixture under the new ABI.
+**Verification:** `cargo test` (wasmtime v28 crate present) → **26/26 spec assertions pass** (+7
+doc-tests), including the three string conformance tests (`str_greet` → `Hello, World!`, `str_shout`
+→ `hihi`, `str_len` → `5`) and `interface_strings`, against the new fixture under the new ABI, plus
+the two **SPEC §10** tests below.
+
+## SPEC §10 — producer model (loader capabilities), added 2026-07-05 (`cc8a5f7`)
+
+- **§10.1** — after `linker.instantiate(...)`, `lib.rs` calls a reactor module's `_initialize` once
+  before any other export via `instance.get_typed_func::<(), ()>(&mut store, "_initialize")` (no-op
+  if absent).
+- **§10.2** — `wasi::link_wasi_shim(&mut linker)` (see `src/wasi.rs`) registers the minimal
+  `wasi_snapshot_preview1` subset on the existing `Store<()>` before the env link, so an I/O-using
+  library module (e.g. a `modc` lib that calls `console.log` → `fd_write`) loads without a native
+  WASI. Chosen over `wasmtime-wasi` to keep `Store<()>` (no store-type change, no new dep).
+- **Tests:** `spec10_initialize_called` (`getValue()==99` after `_initialize`) and
+  `spec10_wasi_io_library_loads` (`log_and_double(21)==42`), with fixtures `init_check.wasm` +
+  `wasi_io_50.{wasm,wit}` copied into `tests/`.
 
 ## Tests & build/release
 
-- **Test command:** `cargo test`. Current status: **24/24 assertions pass** (`tests/spec_tests.rs`).
-  Covers numeric passthrough, bool normalization, string params+returns, host-import callbacks,
-  singleton identity, pool acquire/release, `bind`, and `wasm_interface!`. All tests are sync
-  `#[test]` except the two `InstancePool` tests which are `#[tokio::test]`.
+- **Test command:** `cargo test`. Current status: **26/26 assertions pass** (`tests/spec_tests.rs`)
+  + 7 doc-tests. Covers numeric passthrough, bool normalization, string params+returns, host-import
+  callbacks, singleton identity, pool acquire/release, `bind`, `wasm_interface!`, and the 2 §10 tests.
+  All tests are sync `#[test]` except the two `InstancePool` tests which are `#[tokio::test]`.
 - **Build:** no build step beyond cargo — `src/*.rs` are the source of truth.
 - **Release flow (crates.io):** version lives in **`Cargo.toml`** (`[package].version`, single
   source of truth). Bump → tag → push → CI publishes.
