@@ -20,6 +20,7 @@
 
 pub mod abi;
 pub mod types;
+mod wasi;
 pub mod wit_parser;
 
 use std::collections::HashMap;
@@ -260,6 +261,10 @@ fn instantiate_from_bytes(
     let parsed = wit_src.map(|src| wit_parser::parse_wit(&src));
 
     let mut linker: Linker<()> = Linker::new(&engine);
+    // Minimal WASI Preview 1 shim (SPEC §10.2) so I/O-using library modules
+    // (e.g. a modc lib that calls console.log → fd_write) instantiate here. Safe
+    // for pure-compute modules — the funcs are simply never linked.
+    wasi::link_wasi_shim(&mut linker)?;
     if let Some(ref p) = parsed {
         if !p.imports.is_empty() {
             abi::link_import_env(&mut linker, &p.imports, &callbacks.map)?;
@@ -268,6 +273,12 @@ fn instantiate_from_bytes(
 
     let mut store = Store::new(&engine, ());
     let instance = linker.instantiate(&mut store, &module)?;
+
+    // Call the reactor initializer once, before any other export (SPEC §10.1).
+    // No-op for modules that don't export `_initialize`.
+    if let Ok(init) = instance.get_typed_func::<(), ()>(&mut store, "_initialize") {
+        init.call(&mut store, ())?;
+    }
 
     if let Some(required) = required_version {
         let ver_global = instance.get_global(&mut store, "version")

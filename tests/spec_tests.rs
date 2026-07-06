@@ -259,3 +259,27 @@ fn interface_strings() -> anyhow::Result<()> {
     assert_eq!(s.str_len("hello")?, 5);
     Ok(())
 }
+
+// ── SPEC §10.1 — the loader calls `_initialize` after instantiation ───────────
+
+#[test]
+fn spec10_initialize_called() -> anyhow::Result<()> {
+    // init_check.wasm has no companion .wit (raw-exports path); its `_initialize`
+    // sets a global to 99 that `getValue` reads — 99 proves the loader invoked it.
+    let m = wasm_load("tests/init_check.wasm", None)?;
+    let v: i32 = m.call("getValue", ())?;
+    assert_eq!(v, 99, "expected _initialize to run and set the global to 99");
+    Ok(())
+}
+
+// ── SPEC §10.2 — the WASI shim lets an I/O-using library instantiate ──────────
+
+#[test]
+fn spec10_wasi_io_library_loads() -> anyhow::Result<()> {
+    // wasi_io_50 is a modc library that calls console.log → imports fd_write. It
+    // only instantiates because the loader provides the minimal WASI-P1 shim.
+    let m = wasm_load("tests/wasi_io_50.wasm", None)?;
+    let r: i32 = m.call("log_and_double", (21i32,))?;
+    assert_eq!(r, 42);
+    Ok(())
+}

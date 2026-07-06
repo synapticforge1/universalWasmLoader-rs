@@ -43,9 +43,10 @@ universalWasmLoader-rs/
 │   ├── lib.rs                  # Public API: wasm_load, wasm_import, create_singleton, InstancePool,
 │   │                           #             ModuleExports, Callbacks, wasm_interface!
 │   ├── wit_parser.rs           # Regex-based WIT parser (no deps)
-│   └── abi.rs                  # ABI translation: wasic + component export callers; import linker
+│   ├── abi.rs                  # ABI translation: wasic + component export callers; import linker
+│   └── wasi.rs                 # Minimal WASI-P1 shim (SPEC §10.2) — func_wrap on Linker<()>, no wasmtime-wasi dep
 ├── tests/
-│   ├── spec_tests.rs           # 24-assertion test suite (sync except pool tests)
+│   ├── spec_tests.rs           # 26-assertion test suite (sync except pool tests) — incl. 2 SPEC §10 tests
 │   ├── math_50.wasm + .wit     # Numeric round-trip fixture
 │   ├── booleans_50.wasm + .wit # Bool normalization fixture
 │   ├── strings_50.wasm + .wit  # String param + return fixture
