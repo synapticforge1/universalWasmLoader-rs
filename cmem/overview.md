@@ -10,6 +10,26 @@ types (numbers direct, strings/bools marshalled) without writing any `wasmtime` 
 - **Crate:** `universal-wasm-loader` (`Cargo.toml`), version `0.1.0`, license MIT.
 - **Language / runtime:** Rust (edition 2021), backed by the **`wasmtime` crate, pinned at v28**.
 - **Registry:** published to **crates.io**.
+- **Repository (moved 2026-10-21):** **<https://github.com/synapticforge1/universalWasmLoader-rs>**
+  — transferred from the personal account `jrmarcum` to the owner-controlled org
+  **`synapticforge1`** (confirmed via the GitHub API redirect on 2026-10-21). The sibling
+  `universalWasmLoader-js` moved too — <https://github.com/synapticforge1/universalWasmLoader-js>
+  (its own memory updated by its session). `wasmtk` did **NOT** move — `jrmarcum/wasmtk` is still
+  correct (checked 2026-10-21); do not "fix" those README links.
+  - **References updated in-repo 2026-10-21:** `Cargo.toml` `repository =`; `README.md` SPEC link
+    and Ecosystem link to `-js`; the Actions-policy wording in `README.md` and
+    `.github/workflows/publish.yml` (no longer claims the policy is `jrmarcum`'s); local `origin`
+    of this repo and of the gitignored `upstream/universalWasmLoader-js` clone repointed to
+    `synapticforge1` (`git ls-remote` verified). The only `jrmarcum` strings left outside `cmem/`
+    are the `wasmtk` links and the history note in the `publish.yml` comment — both intended.
+  - Re-verified after the edits, 2026-10-21: `cargo test --locked` → 26/26 + 7 doc-tests.
+  - crates.io shows the new `repository` URL only **after the next publish**.
+  - The publish workflow is location-agnostic (`${{ github.repository }}`).
+  - **Before the next tag push (owner, on GitHub — not checkable from an unauthenticated
+    session):** (1) confirm the `CARGO_REGISTRY_TOKEN` repo secret exists in the transferred
+    repo; (2) check the `synapticforge1` org's Actions policy (see Release flow); (3) push the
+    unpushed local commits (`cc8a5f7`, `7e39a7f`, plus this move commit) — `origin/main` was at
+    `7b91b9e` on 2026-10-21.
 - **Ecosystem role:** **Stage 2** of the polyglot WASM ecosystem — ports the JS reference to Rust
   (alongside the Python port) to prove the cross-language `SPEC.md` is implementable before further
   language ports. The JS repo is the source of truth for any cross-language behavioral question.
@@ -129,8 +149,10 @@ the two **SPEC §10** tests below.
     `git tag -f vX.Y.Z` + `git push` + `git push -f origin vX.Y.Z`. Never runs `cargo publish`
     locally — the tag push triggers CI. Mirrors the JS reference's `deno task publish`.
   - **`.github/workflows/publish.yml`** — triggered on `push: tags: ["v*"]`. **`run:`-only**
-    (this org's Actions policy permits only `jrmarcum`-owned actions; any third-party `uses:`
-    step → `startup_failure`, nothing runs, nothing reaches crates.io). Steps, all plain `run:`:
+    (the Actions policy under the previous `jrmarcum` owner permitted only `jrmarcum`-owned
+    actions; any third-party `uses:` step → `startup_failure`, nothing runs, nothing reaches
+    crates.io). **Since the 2026-10-21 move the governing policy is the `synapticforge1` org's
+    — UNMEASURED; keep `run:`-only until it is checked.** Steps, all plain `run:`:
     `git clone` checkout (token-auth, `--branch ${{ github.ref_name }}`) → rustup curl installer
     (`~/.cargo/bin` appended to `$GITHUB_PATH`) → `cargo build --release --locked` →
     `cargo test --locked` (gate) → `cargo publish --locked` with `CARGO_REGISTRY_TOKEN` env from

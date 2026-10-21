@@ -12,8 +12,9 @@ jobs:
       contents: write
 
     steps:
-      # NOTE: This org's Actions policy only permits actions owned by `jrmarcum`.
-      # Third-party actions (actions/checkout, dtolnay/rust-toolchain,
+      # NOTE: Written to run under an Actions policy that permits only
+      # owner-owned actions (the policy in force under the previous `jrmarcum`
+      # owner; the `synapticforge1` org's policy is unverified). Third-party actions (actions/checkout, dtolnay/rust-toolchain,
       # actions-rs/*, …) cause a `startup_failure` — the workflow never runs a
       # single step, so NOTHING reaches crates.io even though a local tag/release
       # may still exist (looks published on GitHub, absent on crates.io). Every

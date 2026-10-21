@@ -1,7 +1,7 @@
 # universal-wasm-loader
 
 A universal WebAssembly loader for Rust with automatic WIT-based ABI translation.
-Rust port of the [UniversalWasmLoader Spec v2.0.0](https://github.com/jrmarcum/universalWasmLoader-js/blob/main/SPEC.md).
+Rust port of the [UniversalWasmLoader Spec v2.0.0](https://github.com/synapticforge1/universalWasmLoader-js/blob/main/SPEC.md).
 
 Backed by [wasmtime](https://crates.io/crates/wasmtime). Works with any `.wasm` + `.wit` pair produced by [`wasmtk`](https://github.com/jrmarcum/wasmtk). ABI (wasic vs Canonical) is auto-detected — no profile configuration needed.
 
@@ -228,9 +228,10 @@ scripts/release.sh         # tags vX.Y.Z from Cargo.toml and pushes -> CI
 runs `cargo test` as a gate, and runs `cargo publish` on a GitHub runner.
 
 > The publish workflow is written entirely with plain `run:` steps (checkout via
-> `git clone`, toolchain via the rustup curl installer). This org's GitHub Actions
-> policy only permits `jrmarcum`-owned actions; any third-party `uses:` step causes
-> a `startup_failure` (nothing runs, nothing reaches crates.io). Do not add `uses:`.
+> `git clone`, toolchain via the rustup curl installer), so it runs under a GitHub
+> Actions policy that permits only owner-owned actions. Under such a policy any
+> third-party `uses:` step causes a `startup_failure` (nothing runs, nothing reaches
+> crates.io). Do not add `uses:`.
 
 ### Required one-time owner setup (before the first publish)
 
@@ -248,7 +249,7 @@ runs `cargo test` as a gate, and runs `cargo publish` on a GitHub runner.
 This crate is part of the [polyglot WASM ecosystem](https://github.com/jrmarcum/wasmtk):
 
 - [`wasmtk`](https://github.com/jrmarcum/wasmtk) — TypeScript-to-WASM compiler and polyglot build CLI
-- [`universalWasmLoader-js`](https://github.com/jrmarcum/universalWasmLoader-js) — JS/TS reference implementation and spec
+- [`universalWasmLoader-js`](https://github.com/synapticforge1/universalWasmLoader-js) — JS/TS reference implementation and spec
 - **`universalWasmLoader-rs`** — this crate
 - `universalWasmLoader-py` — Python port (Stage 2, in progress)
 
