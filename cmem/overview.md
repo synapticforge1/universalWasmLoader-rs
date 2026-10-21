@@ -162,7 +162,10 @@ the two **SPEC §10** tests below.
     compute correctly; a real `bump.sh patch` wrote `0.1.1` and was reverted via
     `git checkout -- Cargo.toml` (restored `0.1.0`); `cargo publish --dry-run --locked
     --allow-dirty` packaged 26 files and compiled clean, aborting upload as expected.
-  - **REQUIRED one-time owner setup before first publish:**
+  - **`0.1.0` is already on crates.io** (`cargo publish --dry-run` reports "already exists on
+    crates.io index", 2026-10-21) — the next release must bump `Cargo.toml` first
+    (`scripts/bump.sh`). The dry run packaged 25 files with the new `synapticforge1` repository URL.
+  - **One-time owner setup (done for the first publish; re-check the secret after the repo move):**
     1. **`CARGO_REGISTRY_TOKEN` GitHub repo secret** — from a crates.io API token
        (<https://crates.io/settings/tokens>, publish scope); add under repo Settings → Secrets
        and variables → Actions, named exactly `CARGO_REGISTRY_TOKEN`.
