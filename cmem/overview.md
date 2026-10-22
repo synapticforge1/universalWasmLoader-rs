@@ -7,7 +7,8 @@ The **Rust port** of the Universal WASM Loader reference (JavaScript) implementa
 **Canonical ABI translation** automatically, so a Rust host can call WASM exports with native Rust
 types (numbers direct, strings/bools marshalled) without writing any `wasmtime` glue by hand.
 
-- **Crate:** `universal-wasm-loader` (`Cargo.toml`), version `0.1.0`, license MIT.
+- **Crate:** `universal-wasm-loader` (`Cargo.toml`), version `0.1.1` (published 2026-10-22),
+  license MIT.
 - **Language / runtime:** Rust (edition 2021), backed by the **`wasmtime` crate, pinned at v28**.
 - **Registry:** published to **crates.io**.
 - **Repository (moved 2026-10-21):** **<https://github.com/synapticforge1/universalWasmLoader-rs>**
@@ -25,11 +26,15 @@ types (numbers direct, strings/bools marshalled) without writing any `wasmtime` 
   - Re-verified after the edits, 2026-10-21: `cargo test --locked` → 26/26 + 7 doc-tests.
   - crates.io shows the new `repository` URL only **after the next publish**.
   - The publish workflow is location-agnostic (`${{ github.repository }}`).
-  - **Before the next tag push (owner, on GitHub — not checkable from an unauthenticated
-    session):** (1) confirm the `CARGO_REGISTRY_TOKEN` repo secret exists in the transferred
-    repo; (2) check the `synapticforge1` org's Actions policy (see Release flow); (3) push the
-    unpushed local commits (`cc8a5f7`, `7e39a7f`, plus this move commit) — `origin/main` was at
-    `7b91b9e` on 2026-10-21.
+  - **First release after the move — `v0.1.1`, 2026-10-21 (run `39696811741`, commit
+    `85a2f74`):** the `run:`-only workflow STARTED under the `synapticforge1` org (so its Actions
+    policy accepts it); checkout, toolchain, release build and the test gate all passed;
+    **`Publish to crates.io` failed: `CARGO_REGISTRY_TOKEN secret is not set`** — the repo secret
+    did NOT survive the transfer. Owner re-added the secret and re-ran the job (attempt 2):
+    **all steps green — `0.1.1` PUBLISHED to crates.io 2026-10-22T00:11Z** (crates.io now shows
+    the `synapticforge1` repository URL) and GitHub release `v0.1.1` created. The job-failure
+    reason is readable without auth via the public check-run annotations API
+    (`/repos/<owner>/<repo>/check-runs/<job id>/annotations`).
 - **Ecosystem role:** **Stage 2** of the polyglot WASM ecosystem — ports the JS reference to Rust
   (alongside the Python port) to prove the cross-language `SPEC.md` is implementable before further
   language ports. The JS repo is the source of truth for any cross-language behavioral question.
@@ -162,10 +167,10 @@ the two **SPEC §10** tests below.
     compute correctly; a real `bump.sh patch` wrote `0.1.1` and was reverted via
     `git checkout -- Cargo.toml` (restored `0.1.0`); `cargo publish --dry-run --locked
     --allow-dirty` packaged 26 files and compiled clean, aborting upload as expected.
-  - **`0.1.0` is already on crates.io** (`cargo publish --dry-run` reports "already exists on
-    crates.io index", 2026-10-21) — the next release must bump `Cargo.toml` first
-    (`scripts/bump.sh`). The dry run packaged 25 files with the new `synapticforge1` repository URL.
-  - **One-time owner setup (done for the first publish; re-check the secret after the repo move):**
+  - **On crates.io: `0.1.0` (2026-06-24) and `0.1.1` (2026-10-22).** Every release must bump
+    `Cargo.toml` first (`scripts/bump.sh`); `Cargo.lock` must carry the same version (CI uses
+    `--locked`).
+  - **One-time owner setup (done; the secret was re-added after the 2026-10-21 repo move):**
     1. **`CARGO_REGISTRY_TOKEN` GitHub repo secret** — from a crates.io API token
        (<https://crates.io/settings/tokens>, publish scope); add under repo Settings → Secrets
        and variables → Actions, named exactly `CARGO_REGISTRY_TOKEN`.
