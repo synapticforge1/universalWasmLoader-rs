@@ -1,4 +1,4 @@
-//! Universal WASM Loader — Rust port of the UniversalWasmLoader Spec v2.0.0.
+//! Universal WASM Loader — Rust port of the UniversalWasmLoader Spec v3.0.0.
 //!
 //! Load a `.wasm` file (or URL) with automatic WIT-based ABI translation:
 //!
@@ -34,6 +34,9 @@ use wasmtime::{Engine, Linker, Module, Store};
 pub use abi::{HostCallback, WasmVal};
 pub use types::{IntoWasmVal, FromWasmVal, WasmArgs, FromWasmArgs, host_fn};
 pub use wit_parser::ParsedWit;
+
+/// The version of the cross-language UniversalWasmLoader `SPEC.md` this crate implements.
+pub const SPEC_VERSION: &str = "3.0.0";
 
 // ── Internal ABI kind (not part of public API) ────────────────────────────────
 

@@ -17,11 +17,19 @@
  * SemVer 2.0.0 rule. It sees breaks only: an ADDITION still floors at patch, so choosing minor
  * for new API stays the releaser's call.
  *
+ * Two more checks (the loaders' part of H6): (1) BEHAVIOUR — the release tag's `tests/`
+ * (unmodified, with its own fixtures) run against the NEW `src/` in a throwaway `.compat/` crate;
+ * they must be green for a patch or minor. (2) SPEC — `SPEC_VERSION` in src/lib.rs must equal the
+ * version of the reference `SPEC.md` on universalWasmLoader-js `origin/main` (read from the local
+ * clone `upstream/universalWasmLoader-js`, fetched first); a SPEC_VERSION change since the tag
+ * raises the floor by its own level. After writing Cargo.toml it syncs Cargo.lock (CI is --locked).
+ *
  * Port of scripts/bump.sh (workspace letter H15: Rust has no scripting mechanism that does not
  * build an executable, so committed scripts are TypeScript on Bun). `node:` builtins only.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
@@ -102,11 +110,90 @@ if (floor === null) {
   console.error(`bump: cargo semver-checks rejects even a major bump: ${lints.join(", ")}`);
   process.exit(1);
 }
+// ── SPEC version: ours against the reference, and against the tag ──
+const SPEC_CONST = /pub const SPEC_VERSION: &str = "(\d+)\.(\d+)\.(\d+)";/;
+const ours = readFileSync(join(root, "src", "lib.rs"), "utf8").match(SPEC_CONST);
+if (!ours) {
+  console.error("bump: no `pub const SPEC_VERSION` in src/lib.rs");
+  process.exit(1);
+}
+const spec = `${ours[1]}.${ours[2]}.${ours[3]}`;
+const reference = join(root, "upstream", "universalWasmLoader-js");
+if (!existsSync(join(reference, ".git"))) {
+  console.error("bump: the reference clone is missing — git clone " +
+    "https://github.com/synapticforge1/universalWasmLoader-js upstream/universalWasmLoader-js");
+  process.exit(1);
+}
+if (spawnSync("git", ["-C", reference, "fetch", "-q", "origin"], { stdio: "inherit" }).status !== 0) {
+  console.error("bump: could not fetch the reference clone");
+  process.exit(1);
+}
+const refSpec = spawnSync("git", ["-C", reference, "show", "origin/main:SPEC.md"], { encoding: "utf8" })
+  .stdout.match(/^Version:\s*(\d+\.\d+\.\d+)/m)?.[1];
+if (refSpec !== spec) {
+  console.error(`bump: SPEC_VERSION is ${spec} but the reference SPEC.md (-js origin/main) is ${refSpec ?? "unreadable"}`);
+  process.exit(1);
+}
+const atTag = haveTag
+  ? spawnSync("git", ["show", `${tag}:src/lib.rs`], { cwd: root, encoding: "utf8" }).stdout.match(SPEC_CONST)
+  : null;
+if (atTag) {
+  const levels = [[atTag[1], ours[1]], [atTag[2], ours[2]], [atTag[3], ours[3]]];
+  const moved = levels.findIndex(([a, b]) => a !== b);
+  if (moved >= 0) {
+    const specKind = KINDS[2 - moved];
+    if (KINDS.indexOf(specKind) > KINDS.indexOf(floor)) floor = specKind;
+    lints.push(`SPEC ${atTag.slice(1).join(".")} -> ${spec}`);
+  }
+}
+console.log(`SPEC_VERSION ${spec} = reference SPEC.md ${refSpec}${atTag ? "" : ` (no SPEC_VERSION at ${tag})`}`);
+
 const against = haveTag ? `tag ${tag}` : `crates.io ${current}`;
 console.log(`compatibility floor vs ${against}: ${floor}${lints.length ? `  (set by: ${lints.join(", ")})` : ""}`);
 if (KINDS.indexOf(kind as (typeof KINDS)[number]) < KINDS.indexOf(floor)) {
   console.error(`bump: ${kind} refused — the surface diff requires at least ${floor}`);
   process.exit(1);
+}
+
+// ── behaviour: the tag's tests/ against the new src/ ──
+if (haveTag) {
+  const compat = join(root, ".compat");
+  let summary: string;
+  let green: boolean;
+  rmSync(compat, { recursive: true, force: true });
+  try {
+    mkdirSync(compat);
+    for (const f of ["Cargo.toml", "Cargo.lock", "README.md"]) cpSync(join(root, f), join(compat, f));
+    cpSync(join(root, "src"), join(compat, "src"), { recursive: true });
+    const tar = join(compat, "tests.tar");
+    const archived = spawnSync("git", ["archive", "--format=tar", "-o", tar, tag, "tests"], { cwd: root });
+    const untarred = archived.status === 0 && spawnSync("tar", ["-xf", "tests.tar"], { cwd: compat }).status === 0;
+    if (!untarred) {
+      console.error(`bump: could not extract ${tag}:tests`);
+      process.exit(1);
+    }
+    rmSync(tar);
+    const r = spawnSync("cargo", ["test", "--locked", "--tests"], { cwd: compat, encoding: "utf8" });
+    const out = `${r.stdout}\n${r.stderr}`;
+    let passed = 0;
+    let failed = 0;
+    for (const m of out.matchAll(/test result: \w+\. (\d+) passed; (\d+) failed/g)) {
+      passed += Number(m[1]);
+      failed += Number(m[2]);
+    }
+    green = r.status === 0 && passed > 0 && failed === 0;
+    summary = `${passed} passed, ${failed} failed (exit ${r.status})`;
+    if (!green) console.error(out.split("\n").filter((l) => /FAILED|panicked|error(\[|:)/.test(l)).join("\n"));
+  } finally {
+    rmSync(compat, { recursive: true, force: true });
+  }
+  console.log(`${tag} tests/ against the new src/: ${green ? "green" : "RED"} — ${summary}`);
+  if (!green && kind !== "major") {
+    console.error(`bump: ${kind} refused — the previous release's tests are red; classify each failure`);
+    process.exit(1);
+  }
+} else {
+  console.log(`previous-release tests: skipped — no tag ${tag} to take them from`);
 }
 
 if (dryRun) {
@@ -123,6 +210,12 @@ if (updated === text) {
 }
 writeFileSync(`${cargoToml}.tmp`, updated);
 renameSync(`${cargoToml}.tmp`, cargoToml);
+
+// Cargo.lock records this package's version too; CI builds --locked.
+if (spawnSync("cargo", ["update", "--workspace", "--offline"], { cwd: root, stdio: "inherit" }).status !== 0) {
+  console.error("bump: Cargo.toml was raised but `cargo update --workspace` failed — Cargo.lock is stale");
+  process.exit(1);
+}
 
 console.log(`Cargo.toml -> ${next}  (${kind} bump from ${current})`);
 console.log(`Next: review, commit, then run bun scripts/release.ts to tag v${next} and push.`);

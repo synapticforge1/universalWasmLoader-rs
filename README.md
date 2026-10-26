@@ -1,7 +1,7 @@
 # universal-wasm-loader
 
 A universal WebAssembly loader for Rust with automatic WIT-based ABI translation.
-Rust port of the [UniversalWasmLoader Spec v2.0.0](https://github.com/synapticforge1/universalWasmLoader-js/blob/main/SPEC.md).
+Rust port of the [UniversalWasmLoader Spec v3.0.0](https://github.com/synapticforge1/universalWasmLoader-js/blob/main/SPEC.md).
 
 Backed by [wasmtime](https://crates.io/crates/wasmtime). Works with any `.wasm` + `.wit` pair produced by [`wasmtk`](https://github.com/synapticforge1/wasmtk). ABI (wasic vs Canonical) is auto-detected — no profile configuration needed.
 
@@ -11,7 +11,7 @@ Backed by [wasmtime](https://crates.io/crates/wasmtime). Works with any `.wasm` 
 
 ```toml
 [dependencies]
-universal-wasm-loader = "0.1"
+universal-wasm-loader = "0.2"
 ```
 
 ```rust
@@ -104,7 +104,7 @@ fn main() -> anyhow::Result<()> {
 
 ```toml
 [dependencies]
-universal-wasm-loader = "0.1"
+universal-wasm-loader = "0.2"
 tokio = { version = "1", features = ["full"] }
 ```
 
@@ -206,6 +206,17 @@ The suite covers numeric, bool, string, host-import, singleton, pool, bind, and 
 
 ---
 
+## Breaking Changes
+
+Versions follow [Semantic Versioning 2.0.0](https://semver.org/): a breaking change takes a new
+major version and is listed here with its migration.
+
+| Version | Breaking change | Migration |
+| --- | --- | --- |
+| — | none so far (0.1.0 → 0.1.1 → 0.2.0 are compatible; 0.2.0 adds `SPEC_VERSION`) | — |
+
+---
+
 ## Releasing (crates.io)
 
 The crate version lives in **`Cargo.toml`** (`[package].version`) — the single source of truth.
@@ -218,6 +229,11 @@ bun scripts/bump.ts minor      # minor:  0.1.0 -> 0.2.0
 bun scripts/bump.ts major      # major:  0.1.0 -> 1.0.0
 bun scripts/bump.ts --dry-run  # print the next version without writing
 ```
+
+The bump is gated: it refuses a version below what `cargo semver-checks` requires (install with
+`cargo install cargo-semver-checks --locked`), and a patch or minor while the previous release's
+tests fail against the new source. It needs the reference clone at `upstream/universalWasmLoader-js`
+to check `SPEC_VERSION`.
 
 After bumping, commit the change, then tag and push to trigger publishing:
 

@@ -24,10 +24,12 @@ H25, H28). Where this file and the floor disagree, the floor wins until the owne
 - **The local gate is CI's gate** — read it from `.github/workflows/publish.yml`, run it on the
   committed tree after the last edit, read every exit code:
   `cargo build --release --locked` → `cargo test --locked` → `cargo semver-checks check-release`.
-- **Diff the output, not the exit code:** 26 spec assertions + 1 fixture-stamp test + 7 doc-tests
-  (2026-10-26). A drop in any count is a failure even at exit 0.
+- **Diff the output, not the exit code:** compare against the counts below. A drop in any count
+  is a failure even at exit 0.
 - **Invert every new test or gate** — break the thing on purpose, watch it fail for the RIGHT
-  reason, restore from a copy.
+  reason, restore from a copy — then TOUCH the restored files before the next cargo run (a copy
+  keeps its old mtime and cargo keeps the mutant build; best-practices L2).
+- **Test counts (2026-10-26):** 1 fixture stamp + 26 spec + 1 SPEC-version + 7 doc-tests.
 
 ## Tooling (workspace Tooling rules 1–8, 🔒 owner)
 

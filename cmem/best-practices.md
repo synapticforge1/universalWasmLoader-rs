@@ -11,6 +11,12 @@ with the next free number; numbers are never reused.
   fail.** `bump.sh` exited 1 with no message on a `Cargo.toml` without a version line for its
   whole life; the bash → Bun proof found it (2026-10-26, commit "port bump.sh and release.sh").
   [universal-wasm-loader-rs]
+- **L2 Restoring a mutated source from a copy that keeps the copy's OLD timestamp leaves cargo's
+  fingerprint on the MUTANT build; touch every restored file (or rebuild clean) before trusting
+  the next run.** After the bool-decode inversion, `Copy-Item` restored `abi.rs` with its
+  June mtime and the gate run on the clean, committed tree reported 17/9 — the mutant's numbers
+  (2026-10-26). A gate run right after an inversion is evidence only after a forced rebuild.
+  [universal-wasm-loader-rs]
 
 ## ★ The workspace's convergent rules — a COPY, stamped 2026-10-26 (workspace letters H6, H24, H27)
 

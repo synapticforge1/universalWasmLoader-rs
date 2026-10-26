@@ -90,6 +90,10 @@ re-stamps (workspace letter H7, drift L3/X8).
 - **`Callbacks`** builder: `on(name, closure)` (typed) / `on_raw(name, HostCallback)`. Keys are
   **camelCase** WIT import names (e.g. `"envMul"`).
 - **`WasmVal`** — decoded value enum (`I32`/`I64`/`F32`/`F64`/`Bool`/`Str`/`Void`).
+- **`SPEC_VERSION: &str`** (added for 0.2.0, 2026-10-26) — the SPEC version implemented, `"3.0.0"`.
+  The ONE source for the claim: `tests/spec_version.rs` fails if `README.md` or the crate doc
+  (`src/lib.rs`) claims a different "Spec vX.Y.Z" (both said v2.0.0 until 2026-10-26 while the code
+  was 3.0.0); `scripts/bump.ts` refuses a bump when it differs from the reference `SPEC.md`.
 
 ## ABI / Canonical ABI implementation
 
@@ -154,7 +158,7 @@ the two **SPEC §10** tests below.
 ## Tests & build/release
 
 - **Test command:** `cargo test`. Status 2026-10-26: **26/26 assertions pass** (`tests/spec_tests.rs`)
-  + 1 fixture-stamp test + 7 doc-tests. Covers numeric passthrough, bool normalization, string params+returns, host-import
+  + 1 fixture-stamp test + 1 SPEC-version test + 7 doc-tests. Covers numeric passthrough, bool normalization, string params+returns, host-import
   callbacks, singleton identity, pool acquire/release, `bind`, `wasm_interface!`, and the 2 §10 tests.
   All tests are sync `#[test]` except the two `InstancePool` tests which are `#[tokio::test]`.
 - **Build:** no build step beyond cargo — `src/*.rs` are the source of truth.
@@ -180,6 +184,16 @@ the two **SPEC §10** tests below.
     refused, and the CI form exits 100 — a break needs MAJOR even at 0.x with an explicit release
     type. Blind spot: it sees breaks only; an addition floors at patch, so minor-for-new-API is
     the releaser's call. Needs `cargo install cargo-semver-checks --locked` (0.51.0 here).
+    **Also gated (2026-10-26, the loaders' part of H6):** (a) BEHAVIOUR — the tag's `tests/`
+    (unmodified, its own fixtures) run against the new `src/` in a throwaway `.compat/` crate
+    (gitignored, removed after); red refuses a patch or minor, a major may proceed. Measured: vs
+    `v0.1.1` 26 passed; mutant "bool decode `!= 0` → `== 0`" (no API change, so semver-checks is
+    blind) → 17 passed / 9 failed, minor refused, major allowed. (b) SPEC — `SPEC_VERSION` must
+    equal `Version:` in -js `origin/main:SPEC.md`, read from the fetched `upstream/` clone (absent
+    clone = error); mutant `3.1.0` refused. A `SPEC_VERSION` change since the tag raises the floor
+    by its level — ⬜ UNMEASURED: no tag carries the const before 0.2.0, so that branch cannot fire
+    yet; invert it at the first SPEC change. (c) After writing `Cargo.toml` it runs
+    `cargo update --workspace --offline` so `Cargo.lock` carries the new version (CI is `--locked`).
   - **`bun scripts/release.ts`** — reads the `Cargo.toml` version, commits any pending bump of
     `Cargo.toml`/`Cargo.lock`, then `git tag -f vX.Y.Z` + `git push` + `git push -f origin vX.Y.Z`.
     Never runs `cargo publish` locally — the tag push triggers CI. 🟡 It force-moves the tag
