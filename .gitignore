@@ -27,5 +27,8 @@ PORT_PROMPT.md
 # Upstream reference repo (cloned locally, not tracked)
 upstream/
 
+# scripts/bump.ts's throwaway crate (current src/ + the release tag's tests/)
+/.compat/
+
 # Machine-local memory: private facts only, never committed (workspace § Records)
 /cmem/local/
