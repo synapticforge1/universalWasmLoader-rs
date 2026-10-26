@@ -158,7 +158,7 @@ the two **SPEC §10** tests below.
 ## Tests & build/release
 
 - **Test command:** `cargo test`. Status 2026-10-26: **26/26 assertions pass** (`tests/spec_tests.rs`)
-  + 1 fixture-stamp test + 7 doc-tests. Covers numeric passthrough, bool normalization, string params+returns, host-import
+  + 1 fixture-stamp test + 1 SPEC-version test + 7 doc-tests. Covers numeric passthrough, bool normalization, string params+returns, host-import
   callbacks, singleton identity, pool acquire/release, `bind`, `wasm_interface!`, and the 2 §10 tests.
   All tests are sync `#[test]` except the two `InstancePool` tests which are `#[tokio::test]`.
 - **Build:** no build step beyond cargo — `src/*.rs` are the source of truth.

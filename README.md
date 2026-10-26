@@ -11,7 +11,7 @@ Backed by [wasmtime](https://crates.io/crates/wasmtime). Works with any `.wasm` 
 
 ```toml
 [dependencies]
-universal-wasm-loader = "0.1"
+universal-wasm-loader = "0.2"
 ```
 
 ```rust
@@ -104,7 +104,7 @@ fn main() -> anyhow::Result<()> {
 
 ```toml
 [dependencies]
-universal-wasm-loader = "0.1"
+universal-wasm-loader = "0.2"
 tokio = { version = "1", features = ["full"] }
 ```
 
