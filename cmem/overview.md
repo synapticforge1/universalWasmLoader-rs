@@ -15,14 +15,21 @@ types (numbers direct, strings/bools marshalled) without writing any `wasmtime` 
   — transferred from the personal account `jrmarcum` to the owner-controlled org
   **`synapticforge1`** (confirmed via the GitHub API redirect on 2026-10-21). The sibling
   `universalWasmLoader-js` moved too — <https://github.com/synapticforge1/universalWasmLoader-js>
-  (its own memory updated by its session). `wasmtk` did **NOT** move — `jrmarcum/wasmtk` is still
-  correct (checked 2026-10-21); do not "fix" those README links.
+  (its own memory updated by its session). `wasmtk` moved later, on 2026-10-23
+  (<https://github.com/synapticforge1/wasmtk>); the 2026-10-21 line here that said it had not was
+  true then and is superseded (workspace letters H17 §3 / H25 §1).
   - **References updated in-repo 2026-10-21:** `Cargo.toml` `repository =`; `README.md` SPEC link
     and Ecosystem link to `-js`; the Actions-policy wording in `README.md` and
-    `.github/workflows/publish.yml` (no longer claims the policy is `jrmarcum`'s); local `origin`
-    of this repo and of the gitignored `upstream/universalWasmLoader-js` clone repointed to
-    `synapticforge1` (`git ls-remote` verified). The only `jrmarcum` strings left outside `cmem/`
-    are the `wasmtk` links and the history note in the `publish.yml` comment — both intended.
+    `.github/workflows/publish.yml`; local `origin` of this repo and of the gitignored
+    `upstream/universalWasmLoader-js` clone repointed to `synapticforge1` (`git ls-remote`
+    verified). **2026-10-26:** the three `README.md` links to `jrmarcum/wasmtk` → `synapticforge1/wasmtk`.
+    The only `jrmarcum` string left outside `cmem/` is the history note in the `publish.yml` comment.
+  - **Publishing path after the move (letter H20, recorded 2026-10-26):** crates.io publishing uses
+    a **repo secret API token** (`CARGO_REGISTRY_TOKEN`), NOT crates.io trusted publishing (OIDC).
+    So no policy pins the GitHub owner/repository IDs and H20's failure mode (a locked trust policy
+    rejecting the new org) does not apply; the move's only effect was the secret not surviving the
+    transfer (below), already re-added. If trusted publishing is adopted later, create the policy
+    under `synapticforge1` (owner's registry account).
   - Re-verified after the edits, 2026-10-21: `cargo test --locked` → 26/26 + 7 doc-tests.
   - crates.io shows the new `repository` URL only **after the next publish**.
   - The publish workflow is location-agnostic (`${{ github.repository }}`).
@@ -49,9 +56,17 @@ types (numbers direct, strings/bools marshalled) without writing any `wasmtime` 
 | `src/types.rs` | Type-conversion traits (`IntoWasmVal`/`FromWasmVal`/`WasmArgs`/`FromWasmArgs`) and `host_fn` helper |
 | `src/wasi.rs` | **SPEC §10.2** minimal WASI-P1 shim: `link_wasi_shim(&mut Linker<()>)` registers the small `wasi_snapshot_preview1` subset via `linker.func_wrap` (`fd_write`→stdout/stderr, `proc_exit`, `random_get`, `clock_time_get`, environ/args, `fd_close`/`fd_seek`/`fd_fdstat_get`). Hand-rolled on the existing `Store<()>` — deliberately **avoids** `wasmtime-wasi`/`WasiP1Ctx` (which would force `Store<WasiP1Ctx>`); minimal-invasiveness choice |
 | `tests/spec_tests.rs` | 26-assertion suite (incl. 2 §10 tests) |
+| `tests/fixtures_stamp.rs` | the fixture bytes ARE the stamped reference set (sha256 vs `tests/fixtures.json`) |
 
-Fixtures in `tests/` are `wasmtk modc` (Phase 50 bindgen) outputs: `math_50`, `booleans_50`,
-`strings_50`, `imports_50` (each `.wasm` + `.wit`). Do not hand-edit fixtures.
+**Fixtures (2026-10-26):** `tests/` holds universalWasmLoader-js's stamped reference set, copied
+byte for byte from its git blobs at -js `bcab4b4` — `tests/fixtures.json` names the generator,
+wasmtk `4a5c3cf668d` (`v2.0.3-64-g4a5c3cf`, on wasmtk's `origin/main`, tag `v3.0.0` — fetchable,
+★ 8.10). `math_50`, `booleans_50`, `strings_50`, `imports_50`, `wasi_io_50` (`.wasm` + `.wit`) are
+`wasmtk modc` output; `init_check.{wat,wasm}` is hand-written. Five `.wasm` changed from the
+pre-2026-10-26 set (the `.wit` were already identical); 26/26 still pass. `fixtures_stamp.rs`
+fails on a changed byte, a missing file, or an unstamped `.wasm`/`.wit`/`.wat` (each inverted
+2026-10-26). Never hand-edit a fixture; re-copy the set and `fixtures.json` together when -js
+re-stamps (workspace letter H7, drift L3/X8).
 
 ## Public API surface (Rust equivalent of the reference loader)
 
@@ -109,14 +124,14 @@ callee-allocated `[ptr, len]` pair, and the host reads that pair then calls a pa
 - **Wasic profile unchanged** — `call_wasic_export` still reads `__str_ret_ptr` / `__str_ret_len`
   globals; that is a separate code path and the SPEC return-ABI change does not touch it.
 
-**Fixture:** `tests/strings_50.{wasm,wit}` re-sourced from the new-ABI wasmtk bindgen fixture
-(`greet`/`shout` now `(result i32)` with companion `cabi_post_greet` / `cabi_post_shout` exports).
-`math_50` / `booleans_50` / `imports_50` unchanged.
+**Fixture:** `tests/strings_50.{wasm,wit}` — `greet`/`shout` are `(result i32)` with companion
+`cabi_post_greet` / `cabi_post_shout` exports (now the stamped reference set, see Source layout).
 
-**The bundled reference `upstream/universalWasmLoader-js/SPEC.md` has been refreshed to v3.0.0**
-(header + §4 return-marshalling table + §5 callee-allocated string-return steps). NOTE: the bundled
-`upstream/.../abi.js` JS source itself is still the v2.0.0 snapshot (old out-param) and was not
-rewritten — it is a vendored reference, not built/run here.
+**The local reference clone `upstream/universalWasmLoader-js/`** (gitignored, not shipped) was a
+2.x snapshot with a hand-edited `SPEC.md` until 2026-10-26 (drift L5); it was fast-forwarded that
+day to -js `origin/main` `bcab4b4` (SPEC 3.0.0, 3.x `abi.js`, `wasi.js`). Never hand-edit it —
+`git -C upstream/universalWasmLoader-js pull --ff-only` refreshes it; the sibling checkout
+`../universalWasmLoader-js` is the same repository.
 
 **Verification:** `cargo test` (wasmtime v28 crate present) → **26/26 spec assertions pass** (+7
 doc-tests), including the three string conformance tests (`str_greet` → `Hello, World!`, `str_shout`
@@ -138,21 +153,38 @@ the two **SPEC §10** tests below.
 
 ## Tests & build/release
 
-- **Test command:** `cargo test`. Current status: **26/26 assertions pass** (`tests/spec_tests.rs`)
-  + 7 doc-tests. Covers numeric passthrough, bool normalization, string params+returns, host-import
+- **Test command:** `cargo test`. Status 2026-10-26: **26/26 assertions pass** (`tests/spec_tests.rs`)
+  + 1 fixture-stamp test + 7 doc-tests. Covers numeric passthrough, bool normalization, string params+returns, host-import
   callbacks, singleton identity, pool acquire/release, `bind`, `wasm_interface!`, and the 2 §10 tests.
   All tests are sync `#[test]` except the two `InstancePool` tests which are `#[tokio::test]`.
 - **Build:** no build step beyond cargo — `src/*.rs` are the source of truth.
 - **Release flow (crates.io):** version lives in **`Cargo.toml`** (`[package].version`, single
   source of truth). Bump → tag → push → CI publishes.
-  - **`scripts/bump.sh [patch|minor|major] [--dry-run]`** — raises the first `version = "X.Y.Z"`
-    in `Cargo.toml` (patch is default). Pure bash + awk (no `cargo-edit` dependency); `--dry-run`
-    prints the next version without writing. `cargo set-version --bump <kind>` (cargo-edit) is an
-    equivalent if preferred. NOTE: avoid `next` as an awk variable name — it is a gawk reserved
-    word (the script uses `nextver`).
-  - **`scripts/release.sh`** — reads the `Cargo.toml` version, commits any pending bump, then
-    `git tag -f vX.Y.Z` + `git push` + `git push -f origin vX.Y.Z`. Never runs `cargo publish`
-    locally — the tag push triggers CI. Mirrors the JS reference's `deno task publish`.
+  - **Scripts are TypeScript on Bun** (workspace Tooling rule 1 / letter H15: Rust's
+    `cargo -Zscript` builds an executable, so it does not count). `scripts/bump.sh` and
+    `release.sh` were ported to `bump.ts` / `release.ts` on 2026-10-26 under the proof rule:
+    14 cases run against both (11 bump incl. 3 that must fail; 3 release against a throwaway bare
+    remote, comparing stdout, exit code, `Cargo.toml`, remote tags, tag tree and message) — 13
+    identical after normalizing path spelling, commit ids and the new script name in the hint. The
+    14th was a DEFECT in the original: with no version line `bump.sh` exited 1 SILENTLY (its error
+    message was unreachable under `set -eo pipefail`); the port prints it. Details in the commit.
+  - **`bun scripts/bump.ts [patch|minor|major] [--dry-run|-n]`** — raises the first
+    `version = "X.Y.Z"` in `Cargo.toml` (patch is default; last kind argument wins); `--dry-run`
+    prints the next version without writing. Writes temp + rename.
+    **🔒 Gated (workspace letter H6, SemVer 2.0.0 + the compatibility gate, 2026-10-26):** it
+    runs `cargo semver-checks check-release` against tag `v<current>` (crates.io if no tag) for
+    patch, then minor, then major; the first accepted is the FLOOR, printed with the lints that
+    set it; a lower bump is refused. CI repeats it on the tag (`publish.yml` step "Compatibility
+    gate", registry baseline). Measured 2026-10-26: clean tree → floor patch (229 checks); mutant
+    "`pub fn create_singleton` → private" → floor **major** (`function_missing`), patch and minor
+    refused, and the CI form exits 100 — a break needs MAJOR even at 0.x with an explicit release
+    type. Blind spot: it sees breaks only; an addition floors at patch, so minor-for-new-API is
+    the releaser's call. Needs `cargo install cargo-semver-checks --locked` (0.51.0 here).
+  - **`bun scripts/release.ts`** — reads the `Cargo.toml` version, commits any pending bump of
+    `Cargo.toml`/`Cargo.lock`, then `git tag -f vX.Y.Z` + `git push` + `git push -f origin vX.Y.Z`.
+    Never runs `cargo publish` locally — the tag push triggers CI. 🟡 It force-moves the tag
+    (inherited from `release.sh`); a tag that already published must never move (★ 7.11) —
+    see [open-work.md](open-work.md).
   - **`.github/workflows/publish.yml`** — triggered on `push: tags: ["v*"]`. **`run:`-only**
     (the Actions policy under the previous `jrmarcum` owner permitted only `jrmarcum`-owned
     actions; any third-party `uses:` step → `startup_failure`, nothing runs, nothing reaches
@@ -160,15 +192,12 @@ the two **SPEC §10** tests below.
     — UNMEASURED; keep `run:`-only until it is checked.** Steps, all plain `run:`:
     `git clone` checkout (token-auth, `--branch ${{ github.ref_name }}`) → rustup curl installer
     (`~/.cargo/bin` appended to `$GITHUB_PATH`) → `cargo build --release --locked` →
-    `cargo test --locked` (gate) → `cargo publish --locked` with `CARGO_REGISTRY_TOKEN` env from
+    `cargo test --locked` (gate) → `cargo install cargo-semver-checks --locked` +
+    `cargo semver-checks check-release` (compatibility gate) → `cargo publish --locked` with `CARGO_REGISTRY_TOKEN` env from
     `${{ secrets.CARGO_REGISTRY_TOKEN }}` (workflow errors out if the secret is empty) → optional
     `gh release create` (pre-installed `gh`, `run:`). Do NOT reintroduce `uses:`.
-  - **Validation done (not published):** `scripts/bump.sh --dry-run` for patch/minor/major all
-    compute correctly; a real `bump.sh patch` wrote `0.1.1` and was reverted via
-    `git checkout -- Cargo.toml` (restored `0.1.0`); `cargo publish --dry-run --locked
-    --allow-dirty` packaged 26 files and compiled clean, aborting upload as expected.
   - **On crates.io: `0.1.0` (2026-06-24) and `0.1.1` (2026-10-22).** Every release must bump
-    `Cargo.toml` first (`scripts/bump.sh`); `Cargo.lock` must carry the same version (CI uses
+    `Cargo.toml` first (`bun scripts/bump.ts`); `Cargo.lock` must carry the same version (CI uses
     `--locked`).
   - **One-time owner setup (done; the secret was re-added after the 2026-10-21 repo move):**
     1. **`CARGO_REGISTRY_TOKEN` GitHub repo secret** — from a crates.io API token

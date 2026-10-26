@@ -3,7 +3,7 @@
 A universal WebAssembly loader for Rust with automatic WIT-based ABI translation.
 Rust port of the [UniversalWasmLoader Spec v2.0.0](https://github.com/synapticforge1/universalWasmLoader-js/blob/main/SPEC.md).
 
-Backed by [wasmtime](https://crates.io/crates/wasmtime). Works with any `.wasm` + `.wit` pair produced by [`wasmtk`](https://github.com/jrmarcum/wasmtk). ABI (wasic vs Canonical) is auto-detected — no profile configuration needed.
+Backed by [wasmtime](https://crates.io/crates/wasmtime). Works with any `.wasm` + `.wit` pair produced by [`wasmtk`](https://github.com/synapticforge1/wasmtk). ABI (wasic vs Canonical) is auto-detected — no profile configuration needed.
 
 ---
 
@@ -202,7 +202,7 @@ The same types work in `Callbacks::on` closures — destructure the arg tuple an
 cargo test
 ```
 
-All 24 assertions pass. The suite covers numeric, bool, string, host-import, singleton, pool, bind, and `wasm_interface!` patterns across four fixture modules.
+The suite covers numeric, bool, string, host-import, singleton, pool, bind, and `wasm_interface!` patterns, plus the SPEC §10 `_initialize` and WASI-shim cases. The fixtures in `tests/` are the reference set from [`universalWasmLoader-js`](https://github.com/synapticforge1/universalWasmLoader-js), copied unmodified (SPEC §7); `tests/fixtures_stamp.rs` checks their bytes against `tests/fixtures.json`.
 
 ---
 
@@ -210,20 +210,22 @@ All 24 assertions pass. The suite covers numeric, bool, string, host-import, sin
 
 The crate version lives in **`Cargo.toml`** (`[package].version`) — the single source of truth.
 
+The release scripts are TypeScript run by [Bun](https://bun.sh):
+
 ```sh
-scripts/bump.sh            # patch:  0.1.0 -> 0.1.1   (default)
-scripts/bump.sh minor      # minor:  0.1.0 -> 0.2.0
-scripts/bump.sh major      # major:  0.1.0 -> 1.0.0
-scripts/bump.sh --dry-run  # print the next version without writing
+bun scripts/bump.ts            # patch:  0.1.0 -> 0.1.1   (default)
+bun scripts/bump.ts minor      # minor:  0.1.0 -> 0.2.0
+bun scripts/bump.ts major      # major:  0.1.0 -> 1.0.0
+bun scripts/bump.ts --dry-run  # print the next version without writing
 ```
 
 After bumping, commit the change, then tag and push to trigger publishing:
 
 ```sh
-scripts/release.sh         # tags vX.Y.Z from Cargo.toml and pushes -> CI
+bun scripts/release.ts         # tags vX.Y.Z from Cargo.toml and pushes -> CI
 ```
 
-`scripts/release.sh` never runs `cargo publish` locally — the tag push triggers
+`scripts/release.ts` never runs `cargo publish` locally — the tag push triggers
 [`.github/workflows/publish.yml`](.github/workflows/publish.yml), which builds,
 runs `cargo test` as a gate, and runs `cargo publish` on a GitHub runner.
 
@@ -246,9 +248,9 @@ runs `cargo test` as a gate, and runs `cargo publish` on a GitHub runner.
 
 ## Ecosystem
 
-This crate is part of the [polyglot WASM ecosystem](https://github.com/jrmarcum/wasmtk):
+This crate is part of the [polyglot WASM ecosystem](https://github.com/synapticforge1/wasmtk):
 
-- [`wasmtk`](https://github.com/jrmarcum/wasmtk) — TypeScript-to-WASM compiler and polyglot build CLI
+- [`wasmtk`](https://github.com/synapticforge1/wasmtk) — TypeScript-to-WASM compiler and polyglot build CLI
 - [`universalWasmLoader-js`](https://github.com/synapticforge1/universalWasmLoader-js) — JS/TS reference implementation and spec
 - **`universalWasmLoader-rs`** — this crate
 - `universalWasmLoader-py` — Python port (Stage 2, in progress)

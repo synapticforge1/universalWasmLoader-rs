@@ -26,3 +26,6 @@ PORT_PROMPT.md
 
 # Upstream reference repo (cloned locally, not tracked)
 upstream/
+
+# Machine-local memory: private facts only, never committed (workspace § Records)
+/cmem/local/
