@@ -1,6 +1,6 @@
 [package]
 name = "universal-wasm-loader"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 description = "A universal WebAssembly loader with WIT-aware ABI translation. Rust port of the universalWasmLoader spec."
 license = "MIT"
