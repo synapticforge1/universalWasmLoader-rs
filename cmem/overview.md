@@ -90,6 +90,10 @@ re-stamps (workspace letter H7, drift L3/X8).
 - **`Callbacks`** builder: `on(name, closure)` (typed) / `on_raw(name, HostCallback)`. Keys are
   **camelCase** WIT import names (e.g. `"envMul"`).
 - **`WasmVal`** — decoded value enum (`I32`/`I64`/`F32`/`F64`/`Bool`/`Str`/`Void`).
+- **`SPEC_VERSION: &str`** (added for 0.2.0, 2026-10-26) — the SPEC version implemented, `"3.0.0"`.
+  The ONE source for the claim: `tests/spec_version.rs` fails if `README.md` or the crate doc
+  (`src/lib.rs`) claims a different "Spec vX.Y.Z" (both said v2.0.0 until 2026-10-26 while the code
+  was 3.0.0); `scripts/bump.ts` refuses a bump when it differs from the reference `SPEC.md`.
 
 ## ABI / Canonical ABI implementation
 

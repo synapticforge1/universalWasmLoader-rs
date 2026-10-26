@@ -1,7 +1,7 @@
 # universal-wasm-loader
 
 A universal WebAssembly loader for Rust with automatic WIT-based ABI translation.
-Rust port of the [UniversalWasmLoader Spec v2.0.0](https://github.com/synapticforge1/universalWasmLoader-js/blob/main/SPEC.md).
+Rust port of the [UniversalWasmLoader Spec v3.0.0](https://github.com/synapticforge1/universalWasmLoader-js/blob/main/SPEC.md).
 
 Backed by [wasmtime](https://crates.io/crates/wasmtime). Works with any `.wasm` + `.wit` pair produced by [`wasmtk`](https://github.com/synapticforge1/wasmtk). ABI (wasic vs Canonical) is auto-detected — no profile configuration needed.
 
