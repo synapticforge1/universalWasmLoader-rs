@@ -37,6 +37,13 @@ jobs:
       - name: Test (gate)
         run: cargo test --locked
 
+      # The compatibility gate, repeated on the tag (workspace letter H6): the Cargo.toml version
+      # must be a large enough bump over the latest crates.io release for the API diff.
+      - name: Compatibility gate (cargo semver-checks)
+        run: |
+          cargo install cargo-semver-checks --locked
+          cargo semver-checks check-release
+
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

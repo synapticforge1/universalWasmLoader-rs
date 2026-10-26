@@ -164,6 +164,15 @@ the two **SPEC §10** tests below.
   - **`bun scripts/bump.ts [patch|minor|major] [--dry-run|-n]`** — raises the first
     `version = "X.Y.Z"` in `Cargo.toml` (patch is default; last kind argument wins); `--dry-run`
     prints the next version without writing. Writes temp + rename.
+    **🔒 Gated (workspace letter H6, SemVer 2.0.0 + the compatibility gate, 2026-10-26):** it
+    runs `cargo semver-checks check-release` against tag `v<current>` (crates.io if no tag) for
+    patch, then minor, then major; the first accepted is the FLOOR, printed with the lints that
+    set it; a lower bump is refused. CI repeats it on the tag (`publish.yml` step "Compatibility
+    gate", registry baseline). Measured 2026-10-26: clean tree → floor patch (229 checks); mutant
+    "`pub fn create_singleton` → private" → floor **major** (`function_missing`), patch and minor
+    refused, and the CI form exits 100 — a break needs MAJOR even at 0.x with an explicit release
+    type. Blind spot: it sees breaks only; an addition floors at patch, so minor-for-new-API is
+    the releaser's call. Needs `cargo install cargo-semver-checks --locked` (0.51.0 here).
   - **`bun scripts/release.ts`** — reads the `Cargo.toml` version, commits any pending bump of
     `Cargo.toml`/`Cargo.lock`, then `git tag -f vX.Y.Z` + `git push` + `git push -f origin vX.Y.Z`.
     Never runs `cargo publish` locally — the tag push triggers CI. 🟡 It force-moves the tag
@@ -176,7 +185,8 @@ the two **SPEC §10** tests below.
     — UNMEASURED; keep `run:`-only until it is checked.** Steps, all plain `run:`:
     `git clone` checkout (token-auth, `--branch ${{ github.ref_name }}`) → rustup curl installer
     (`~/.cargo/bin` appended to `$GITHUB_PATH`) → `cargo build --release --locked` →
-    `cargo test --locked` (gate) → `cargo publish --locked` with `CARGO_REGISTRY_TOKEN` env from
+    `cargo test --locked` (gate) → `cargo install cargo-semver-checks --locked` +
+    `cargo semver-checks check-release` (compatibility gate) → `cargo publish --locked` with `CARGO_REGISTRY_TOKEN` env from
     `${{ secrets.CARGO_REGISTRY_TOKEN }}` (workflow errors out if the secret is empty) → optional
     `gh release create` (pre-installed `gh`, `run:`). Do NOT reintroduce `uses:`.
   - **On crates.io: `0.1.0` (2026-06-24) and `0.1.1` (2026-10-22).** Every release must bump
