@@ -206,6 +206,17 @@ The suite covers numeric, bool, string, host-import, singleton, pool, bind, and 
 
 ---
 
+## Breaking Changes
+
+Versions follow [Semantic Versioning 2.0.0](https://semver.org/): a breaking change takes a new
+major version and is listed here with its migration.
+
+| Version | Breaking change | Migration |
+| --- | --- | --- |
+| — | none so far (0.1.0 → 0.1.1 → 0.2.0 are compatible; 0.2.0 adds `SPEC_VERSION`) | — |
+
+---
+
 ## Releasing (crates.io)
 
 The crate version lives in **`Cargo.toml`** (`[package].version`) — the single source of truth.
@@ -218,6 +229,11 @@ bun scripts/bump.ts minor      # minor:  0.1.0 -> 0.2.0
 bun scripts/bump.ts major      # major:  0.1.0 -> 1.0.0
 bun scripts/bump.ts --dry-run  # print the next version without writing
 ```
+
+The bump is gated: it refuses a version below what `cargo semver-checks` requires (install with
+`cargo install cargo-semver-checks --locked`), and a patch or minor while the previous release's
+tests fail against the new source. It needs the reference clone at `upstream/universalWasmLoader-js`
+to check `SPEC_VERSION`.
 
 After bumping, commit the change, then tag and push to trigger publishing:
 
