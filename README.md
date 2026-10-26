@@ -202,7 +202,7 @@ The same types work in `Callbacks::on` closures — destructure the arg tuple an
 cargo test
 ```
 
-All 24 assertions pass. The suite covers numeric, bool, string, host-import, singleton, pool, bind, and `wasm_interface!` patterns across four fixture modules.
+The suite covers numeric, bool, string, host-import, singleton, pool, bind, and `wasm_interface!` patterns, plus the SPEC §10 `_initialize` and WASI-shim cases. The fixtures in `tests/` are the reference set from [`universalWasmLoader-js`](https://github.com/synapticforge1/universalWasmLoader-js), copied unmodified (SPEC §7); `tests/fixtures_stamp.rs` checks their bytes against `tests/fixtures.json`.
 
 ---
 

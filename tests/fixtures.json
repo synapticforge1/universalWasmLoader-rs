@@ -1,0 +1,37 @@
+{
+  "$comment": "Reference fixtures for every universal-wasm-loader port: copy these bytes unmodified (SPEC §7) and verify them against this file. Written by scripts/regen-fixtures.ts; do not edit by hand.",
+  "generator": {
+    "tool": "wasmtk modc",
+    "repository": "https://github.com/synapticforge1/wasmtk",
+    "commit": "4a5c3cf668da2c5c6e2cde444851773b5d4f4a08",
+    "describe": "v2.0.3-64-g4a5c3cf",
+    "committed": "2026-10-09T20:13:12-04:00",
+    "command": "deno run -A --no-lock --config deno.json main.ts modc tests/module/bindgen_fixtures/<name>.ts -n <name>.wasm"
+  },
+  "sourcesAreGitBlobIds": true,
+  "sources": {
+    "math_50.ts": "244f2b186abd23a4d7f1541a97602eab096cc0da",
+    "booleans_50.ts": "9661fd8f58f73374ac6f15b07b9096fdf0f7ad51",
+    "strings_50.ts": "72e29a2d335893366e3f25b771532df8b16a5865",
+    "imports_50.ts": "7184bfc92f68bf73160a0991d4c08676a5fc6517",
+    "wasi_io_50.ts": "935a8677d834585c5b7f7a77b1a97334b8499760"
+  },
+  "handWritten": [
+    "init_check.wat",
+    "init_check.wasm"
+  ],
+  "files": {
+    "math_50.wasm": "c377d5c870260c2bb1b422216728758a418dac0909ebd9a52199888ed736f196",
+    "math_50.wit": "46ed52f1c677cf6e0a0ecde4b4c21fea2575c059e9237b4a1bba848d294e8318",
+    "booleans_50.wasm": "5f8294ed629a3acb5b47133239b3cb570dd4bf5b29db7fd839c7aeda617d30bd",
+    "booleans_50.wit": "85d913babb811706d401488153700721af962ea8267f9c9ff22a08f803013d2f",
+    "strings_50.wasm": "7cc8b2d845443ce151002953746933b98c63d47178b0760d7ffba42dc0a39eea",
+    "strings_50.wit": "5a0df5d9ca19e2795ca20701f7adcfd16b3380c98a8093bdac5085674ac110d7",
+    "imports_50.wasm": "76c53a1caeefd230343cf046efa3c34d48822cb3422efa7fe60ee26091cd3a38",
+    "imports_50.wit": "edee525e7042561f3bb901ae36da1518bd37c83d2b9564f2b4f5c4f11320f572",
+    "wasi_io_50.wasm": "8bb3b431455799e6da88fbf0cb84033453d1b218ce63fbf97c42ce746c7b3741",
+    "wasi_io_50.wit": "b281961e83e08fd9cf7ce9dd9b7b5ae1489432e92d811417ce801477b733b586",
+    "init_check.wat": "028be10b31451c94c1951695e292b32047f564d3dc32973b8aa65f3bc7616c8d",
+    "init_check.wasm": "00cf0772ed90c6315fb7f0f1abeb0cda6d008a2a455d9ab49807fcf10f9263fc"
+  }
+}

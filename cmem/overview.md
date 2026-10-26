@@ -49,9 +49,17 @@ types (numbers direct, strings/bools marshalled) without writing any `wasmtime` 
 | `src/types.rs` | Type-conversion traits (`IntoWasmVal`/`FromWasmVal`/`WasmArgs`/`FromWasmArgs`) and `host_fn` helper |
 | `src/wasi.rs` | **SPEC §10.2** minimal WASI-P1 shim: `link_wasi_shim(&mut Linker<()>)` registers the small `wasi_snapshot_preview1` subset via `linker.func_wrap` (`fd_write`→stdout/stderr, `proc_exit`, `random_get`, `clock_time_get`, environ/args, `fd_close`/`fd_seek`/`fd_fdstat_get`). Hand-rolled on the existing `Store<()>` — deliberately **avoids** `wasmtime-wasi`/`WasiP1Ctx` (which would force `Store<WasiP1Ctx>`); minimal-invasiveness choice |
 | `tests/spec_tests.rs` | 26-assertion suite (incl. 2 §10 tests) |
+| `tests/fixtures_stamp.rs` | the fixture bytes ARE the stamped reference set (sha256 vs `tests/fixtures.json`) |
 
-Fixtures in `tests/` are `wasmtk modc` (Phase 50 bindgen) outputs: `math_50`, `booleans_50`,
-`strings_50`, `imports_50` (each `.wasm` + `.wit`). Do not hand-edit fixtures.
+**Fixtures (2026-10-26):** `tests/` holds universalWasmLoader-js's stamped reference set, copied
+byte for byte from its git blobs at -js `bcab4b4` — `tests/fixtures.json` names the generator,
+wasmtk `4a5c3cf668d` (`v2.0.3-64-g4a5c3cf`, on wasmtk's `origin/main`, tag `v3.0.0` — fetchable,
+★ 8.10). `math_50`, `booleans_50`, `strings_50`, `imports_50`, `wasi_io_50` (`.wasm` + `.wit`) are
+`wasmtk modc` output; `init_check.{wat,wasm}` is hand-written. Five `.wasm` changed from the
+pre-2026-10-26 set (the `.wit` were already identical); 26/26 still pass. `fixtures_stamp.rs`
+fails on a changed byte, a missing file, or an unstamped `.wasm`/`.wit`/`.wat` (each inverted
+2026-10-26). Never hand-edit a fixture; re-copy the set and `fixtures.json` together when -js
+re-stamps (workspace letter H7, drift L3/X8).
 
 ## Public API surface (Rust equivalent of the reference loader)
 
@@ -109,14 +117,14 @@ callee-allocated `[ptr, len]` pair, and the host reads that pair then calls a pa
 - **Wasic profile unchanged** — `call_wasic_export` still reads `__str_ret_ptr` / `__str_ret_len`
   globals; that is a separate code path and the SPEC return-ABI change does not touch it.
 
-**Fixture:** `tests/strings_50.{wasm,wit}` re-sourced from the new-ABI wasmtk bindgen fixture
-(`greet`/`shout` now `(result i32)` with companion `cabi_post_greet` / `cabi_post_shout` exports).
-`math_50` / `booleans_50` / `imports_50` unchanged.
+**Fixture:** `tests/strings_50.{wasm,wit}` — `greet`/`shout` are `(result i32)` with companion
+`cabi_post_greet` / `cabi_post_shout` exports (now the stamped reference set, see Source layout).
 
-**The bundled reference `upstream/universalWasmLoader-js/SPEC.md` has been refreshed to v3.0.0**
-(header + §4 return-marshalling table + §5 callee-allocated string-return steps). NOTE: the bundled
-`upstream/.../abi.js` JS source itself is still the v2.0.0 snapshot (old out-param) and was not
-rewritten — it is a vendored reference, not built/run here.
+**The local reference clone `upstream/universalWasmLoader-js/`** (gitignored, not shipped) was a
+2.x snapshot with a hand-edited `SPEC.md` until 2026-10-26 (drift L5); it was fast-forwarded that
+day to -js `origin/main` `bcab4b4` (SPEC 3.0.0, 3.x `abi.js`, `wasi.js`). Never hand-edit it —
+`git -C upstream/universalWasmLoader-js pull --ff-only` refreshes it; the sibling checkout
+`../universalWasmLoader-js` is the same repository.
 
 **Verification:** `cargo test` (wasmtime v28 crate present) → **26/26 spec assertions pass** (+7
 doc-tests), including the three string conformance tests (`str_greet` → `Hello, World!`, `str_shout`
@@ -138,8 +146,8 @@ the two **SPEC §10** tests below.
 
 ## Tests & build/release
 
-- **Test command:** `cargo test`. Current status: **26/26 assertions pass** (`tests/spec_tests.rs`)
-  + 7 doc-tests. Covers numeric passthrough, bool normalization, string params+returns, host-import
+- **Test command:** `cargo test`. Status 2026-10-26: **26/26 assertions pass** (`tests/spec_tests.rs`)
+  + 1 fixture-stamp test + 7 doc-tests. Covers numeric passthrough, bool normalization, string params+returns, host-import
   callbacks, singleton identity, pool acquire/release, `bind`, `wasm_interface!`, and the 2 §10 tests.
   All tests are sync `#[test]` except the two `InstancePool` tests which are `#[tokio::test]`.
 - **Build:** no build step beyond cargo — `src/*.rs` are the source of truth.

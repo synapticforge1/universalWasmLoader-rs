@@ -1833,6 +1833,7 @@ dependencies = [
  "once_cell",
  "regex-lite",
  "reqwest",
+ "sha2",
  "tokio",
  "wasmtime",
 ]
