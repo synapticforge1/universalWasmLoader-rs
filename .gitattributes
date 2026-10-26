@@ -1,2 +1,6 @@
-# Shell scripts must stay LF so their shebang works on Unix/CI runners.
-*.sh text eol=lf
+# Every text file is LF in the index AND the working tree (workspace Tooling rule 7: wildcard
+# first, then the binaries). Never "fix" a line-ending complaint with `git config`.
+* text=auto eol=lf
+
+# Binaries: never normalized. Fixture bytes are hashed against tests/fixtures.json.
+*.wasm binary
