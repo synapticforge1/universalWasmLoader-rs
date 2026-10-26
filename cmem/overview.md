@@ -15,14 +15,21 @@ types (numbers direct, strings/bools marshalled) without writing any `wasmtime` 
   — transferred from the personal account `jrmarcum` to the owner-controlled org
   **`synapticforge1`** (confirmed via the GitHub API redirect on 2026-10-21). The sibling
   `universalWasmLoader-js` moved too — <https://github.com/synapticforge1/universalWasmLoader-js>
-  (its own memory updated by its session). `wasmtk` did **NOT** move — `jrmarcum/wasmtk` is still
-  correct (checked 2026-10-21); do not "fix" those README links.
+  (its own memory updated by its session). `wasmtk` moved later, on 2026-10-23
+  (<https://github.com/synapticforge1/wasmtk>); the 2026-10-21 line here that said it had not was
+  true then and is superseded (workspace letters H17 §3 / H25 §1).
   - **References updated in-repo 2026-10-21:** `Cargo.toml` `repository =`; `README.md` SPEC link
     and Ecosystem link to `-js`; the Actions-policy wording in `README.md` and
-    `.github/workflows/publish.yml` (no longer claims the policy is `jrmarcum`'s); local `origin`
-    of this repo and of the gitignored `upstream/universalWasmLoader-js` clone repointed to
-    `synapticforge1` (`git ls-remote` verified). The only `jrmarcum` strings left outside `cmem/`
-    are the `wasmtk` links and the history note in the `publish.yml` comment — both intended.
+    `.github/workflows/publish.yml`; local `origin` of this repo and of the gitignored
+    `upstream/universalWasmLoader-js` clone repointed to `synapticforge1` (`git ls-remote`
+    verified). **2026-10-26:** the three `README.md` links to `jrmarcum/wasmtk` → `synapticforge1/wasmtk`.
+    The only `jrmarcum` string left outside `cmem/` is the history note in the `publish.yml` comment.
+  - **Publishing path after the move (letter H20, recorded 2026-10-26):** crates.io publishing uses
+    a **repo secret API token** (`CARGO_REGISTRY_TOKEN`), NOT crates.io trusted publishing (OIDC).
+    So no policy pins the GitHub owner/repository IDs and H20's failure mode (a locked trust policy
+    rejecting the new org) does not apply; the move's only effect was the secret not surviving the
+    transfer (below), already re-added. If trusted publishing is adopted later, create the policy
+    under `synapticforge1` (owner's registry account).
   - Re-verified after the edits, 2026-10-21: `cargo test --locked` → 26/26 + 7 doc-tests.
   - crates.io shows the new `repository` URL only **after the next publish**.
   - The publish workflow is location-agnostic (`${{ github.repository }}`).

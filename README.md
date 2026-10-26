@@ -3,7 +3,7 @@
 A universal WebAssembly loader for Rust with automatic WIT-based ABI translation.
 Rust port of the [UniversalWasmLoader Spec v2.0.0](https://github.com/synapticforge1/universalWasmLoader-js/blob/main/SPEC.md).
 
-Backed by [wasmtime](https://crates.io/crates/wasmtime). Works with any `.wasm` + `.wit` pair produced by [`wasmtk`](https://github.com/jrmarcum/wasmtk). ABI (wasic vs Canonical) is auto-detected — no profile configuration needed.
+Backed by [wasmtime](https://crates.io/crates/wasmtime). Works with any `.wasm` + `.wit` pair produced by [`wasmtk`](https://github.com/synapticforge1/wasmtk). ABI (wasic vs Canonical) is auto-detected — no profile configuration needed.
 
 ---
 
@@ -248,9 +248,9 @@ runs `cargo test` as a gate, and runs `cargo publish` on a GitHub runner.
 
 ## Ecosystem
 
-This crate is part of the [polyglot WASM ecosystem](https://github.com/jrmarcum/wasmtk):
+This crate is part of the [polyglot WASM ecosystem](https://github.com/synapticforge1/wasmtk):
 
-- [`wasmtk`](https://github.com/jrmarcum/wasmtk) — TypeScript-to-WASM compiler and polyglot build CLI
+- [`wasmtk`](https://github.com/synapticforge1/wasmtk) — TypeScript-to-WASM compiler and polyglot build CLI
 - [`universalWasmLoader-js`](https://github.com/synapticforge1/universalWasmLoader-js) — JS/TS reference implementation and spec
 - **`universalWasmLoader-rs`** — this crate
 - `universalWasmLoader-py` — Python port (Stage 2, in progress)
