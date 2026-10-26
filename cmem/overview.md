@@ -210,7 +210,13 @@ the two **SPEC §10** tests below.
     `cargo semver-checks check-release` (compatibility gate) → `cargo publish --locked` with `CARGO_REGISTRY_TOKEN` env from
     `${{ secrets.CARGO_REGISTRY_TOKEN }}` (workflow errors out if the secret is empty) → optional
     `gh release create` (pre-installed `gh`, `run:`). Do NOT reintroduce `uses:`.
-  - **On crates.io: `0.1.0` (2026-06-24) and `0.1.1` (2026-10-22).** Every release must bump
+  - **On crates.io: `0.1.0` (2026-06-24), `0.1.1` (2026-10-22), `0.2.0` (2026-10-26T22:53Z).**
+    0.2.0 = the minor that adds `SPEC_VERSION`; bumped through the full gate (floor patch,
+    `v0.1.1` tests 26/26 on the new src, SPEC 3.0.0 = reference), bump commit `c8f2e11`, tag
+    `v0.2.0`; run `40414680446` green on every step incl. the new compatibility gate; read back
+    from the crates.io API (`max_version` 0.2.0) and the GitHub release `v0.2.0`. The first
+    release from the `synapticforge1` org after the 0.1.1 secret fix; the org's Actions policy
+    still unprobed for `uses:` (the workflow stays `run:`-only). Every release must bump
     `Cargo.toml` first (`bun scripts/bump.ts`); `Cargo.lock` must carry the same version (CI uses
     `--locked`).
   - **One-time owner setup (done; the secret was re-added after the 2026-10-21 repo move):**
