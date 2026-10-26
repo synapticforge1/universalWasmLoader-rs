@@ -210,20 +210,22 @@ The suite covers numeric, bool, string, host-import, singleton, pool, bind, and 
 
 The crate version lives in **`Cargo.toml`** (`[package].version`) — the single source of truth.
 
+The release scripts are TypeScript run by [Bun](https://bun.sh):
+
 ```sh
-scripts/bump.sh            # patch:  0.1.0 -> 0.1.1   (default)
-scripts/bump.sh minor      # minor:  0.1.0 -> 0.2.0
-scripts/bump.sh major      # major:  0.1.0 -> 1.0.0
-scripts/bump.sh --dry-run  # print the next version without writing
+bun scripts/bump.ts            # patch:  0.1.0 -> 0.1.1   (default)
+bun scripts/bump.ts minor      # minor:  0.1.0 -> 0.2.0
+bun scripts/bump.ts major      # major:  0.1.0 -> 1.0.0
+bun scripts/bump.ts --dry-run  # print the next version without writing
 ```
 
 After bumping, commit the change, then tag and push to trigger publishing:
 
 ```sh
-scripts/release.sh         # tags vX.Y.Z from Cargo.toml and pushes -> CI
+bun scripts/release.ts         # tags vX.Y.Z from Cargo.toml and pushes -> CI
 ```
 
-`scripts/release.sh` never runs `cargo publish` locally — the tag push triggers
+`scripts/release.ts` never runs `cargo publish` locally — the tag push triggers
 [`.github/workflows/publish.yml`](.github/workflows/publish.yml), which builds,
 runs `cargo test` as a gate, and runs `cargo publish` on a GitHub runner.
 

@@ -153,14 +153,22 @@ the two **SPEC §10** tests below.
 - **Build:** no build step beyond cargo — `src/*.rs` are the source of truth.
 - **Release flow (crates.io):** version lives in **`Cargo.toml`** (`[package].version`, single
   source of truth). Bump → tag → push → CI publishes.
-  - **`scripts/bump.sh [patch|minor|major] [--dry-run]`** — raises the first `version = "X.Y.Z"`
-    in `Cargo.toml` (patch is default). Pure bash + awk (no `cargo-edit` dependency); `--dry-run`
-    prints the next version without writing. `cargo set-version --bump <kind>` (cargo-edit) is an
-    equivalent if preferred. NOTE: avoid `next` as an awk variable name — it is a gawk reserved
-    word (the script uses `nextver`).
-  - **`scripts/release.sh`** — reads the `Cargo.toml` version, commits any pending bump, then
-    `git tag -f vX.Y.Z` + `git push` + `git push -f origin vX.Y.Z`. Never runs `cargo publish`
-    locally — the tag push triggers CI. Mirrors the JS reference's `deno task publish`.
+  - **Scripts are TypeScript on Bun** (workspace Tooling rule 1 / letter H15: Rust's
+    `cargo -Zscript` builds an executable, so it does not count). `scripts/bump.sh` and
+    `release.sh` were ported to `bump.ts` / `release.ts` on 2026-10-26 under the proof rule:
+    14 cases run against both (11 bump incl. 3 that must fail; 3 release against a throwaway bare
+    remote, comparing stdout, exit code, `Cargo.toml`, remote tags, tag tree and message) — 13
+    identical after normalizing path spelling, commit ids and the new script name in the hint. The
+    14th was a DEFECT in the original: with no version line `bump.sh` exited 1 SILENTLY (its error
+    message was unreachable under `set -eo pipefail`); the port prints it. Details in the commit.
+  - **`bun scripts/bump.ts [patch|minor|major] [--dry-run|-n]`** — raises the first
+    `version = "X.Y.Z"` in `Cargo.toml` (patch is default; last kind argument wins); `--dry-run`
+    prints the next version without writing. Writes temp + rename.
+  - **`bun scripts/release.ts`** — reads the `Cargo.toml` version, commits any pending bump of
+    `Cargo.toml`/`Cargo.lock`, then `git tag -f vX.Y.Z` + `git push` + `git push -f origin vX.Y.Z`.
+    Never runs `cargo publish` locally — the tag push triggers CI. 🟡 It force-moves the tag
+    (inherited from `release.sh`); a tag that already published must never move (★ 7.11) —
+    see [open-work.md](open-work.md).
   - **`.github/workflows/publish.yml`** — triggered on `push: tags: ["v*"]`. **`run:`-only**
     (the Actions policy under the previous `jrmarcum` owner permitted only `jrmarcum`-owned
     actions; any third-party `uses:` step → `startup_failure`, nothing runs, nothing reaches
@@ -171,12 +179,8 @@ the two **SPEC §10** tests below.
     `cargo test --locked` (gate) → `cargo publish --locked` with `CARGO_REGISTRY_TOKEN` env from
     `${{ secrets.CARGO_REGISTRY_TOKEN }}` (workflow errors out if the secret is empty) → optional
     `gh release create` (pre-installed `gh`, `run:`). Do NOT reintroduce `uses:`.
-  - **Validation done (not published):** `scripts/bump.sh --dry-run` for patch/minor/major all
-    compute correctly; a real `bump.sh patch` wrote `0.1.1` and was reverted via
-    `git checkout -- Cargo.toml` (restored `0.1.0`); `cargo publish --dry-run --locked
-    --allow-dirty` packaged 26 files and compiled clean, aborting upload as expected.
   - **On crates.io: `0.1.0` (2026-06-24) and `0.1.1` (2026-10-22).** Every release must bump
-    `Cargo.toml` first (`scripts/bump.sh`); `Cargo.lock` must carry the same version (CI uses
+    `Cargo.toml` first (`bun scripts/bump.ts`); `Cargo.lock` must carry the same version (CI uses
     `--locked`).
   - **One-time owner setup (done; the secret was re-added after the 2026-10-21 repo move):**
     1. **`CARGO_REGISTRY_TOKEN` GitHub repo secret** — from a crates.io API token
