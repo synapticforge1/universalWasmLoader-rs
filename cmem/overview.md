@@ -7,8 +7,8 @@ The **Rust port** of the Universal WASM Loader reference (JavaScript) implementa
 **Canonical ABI translation** automatically, so a Rust host can call WASM exports with native Rust
 types (numbers direct, strings/bools marshalled) without writing any `wasmtime` glue by hand.
 
-- **Crate:** `universal-wasm-loader` (`Cargo.toml`), version `1.0.0` (SPEC 4.0.0; published
-  2026-11-09T02:16Z UTC on the owner's "yes release 1.0.0", read back; history under Tests & build/release),
+- **Crate:** `universal-wasm-loader` (`Cargo.toml`), version `1.0.1` (SPEC 4.0.0; published
+  2026-11-09T02:58Z UTC, read back; 1.0.0 = the SPEC 4.0.0 release; history under Tests & build/release),
   license MIT.
 - **Language / runtime:** Rust (edition 2021), backed by the **`wasmtime` crate, pinned at v28**.
 - **Registry:** published to **crates.io**.
@@ -283,7 +283,16 @@ the two **SPEC §10** tests below.
     scratch crate depending on `universal-wasm-loader = "1.0"` (resolved from the crates.io
     index) prints `SPEC_VERSION 4.0.0`, `add(3, 4) = 7`, and refuses `add("x", 1)` and
     `imports_50` without callbacks, each with its message.
-  - **On crates.io: `0.1.0` (2026-06-24), `0.1.1` (2026-10-22), `0.2.0` (2026-10-26T22:53Z).**
+  - **`1.0.1` (2026-11-08, owner: "bump the version and push and release")** — a patch carrying
+    the `release.ts` fix (`afd09ca`; `scripts/` is excluded from the package, so the crate's code
+    equals 1.0.0's; the packaged README gains the release note). `bump.ts patch`: floor patch,
+    v1.0.0's tests 58/58 on the new src. `bump version to v1.0.1` `c74df9e` = tag `v1.0.1` =
+    `origin/main`, cut by the FIXED `release.ts` (checked the tag absent, no `-f`). Run
+    **42552859531** green in all three jobs (`checks` 10.5 min — wasmtime and cargo-semver-checks
+    compile from source; `publish` 15 s; `release` 4 s). Read back: crates.io `max_version`
+    **1.0.1** (created 2026-11-09T02:58:14Z UTC), GitHub Release `v1.0.1`.
+  - **On crates.io: `0.1.0` (2026-06-24), `0.1.1` (2026-10-22), `0.2.0` (2026-10-26T22:53Z),
+    `1.0.0` (2026-11-09T02:16Z), `1.0.1` (2026-11-09T02:58Z).**
     0.2.0 = the minor that adds `SPEC_VERSION`; bumped through the full gate (floor patch,
     `v0.1.1` tests 26/26 on the new src, SPEC 3.0.0 = reference), bump commit `c8f2e11`, tag
     `v0.2.0`; run `40414680446` green on every step incl. the new compatibility gate; read back
