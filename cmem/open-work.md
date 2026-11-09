@@ -2,12 +2,13 @@
 
 Only open items; each points at its record. Closed items leave (git keeps them).
 
-- ⬜ **Release 1.0.2 measures the REST release step** (owner, 2026-11-09: "bump and release";
-  workspace H30): the `release` job's clone, the sha256-pinned Bun 1.4.4 and
-  `scripts/github-release.ts` have run only locally (real GitHub read-only + a mock API;
-  [overview.md](overview.md) § Release flow). 1.0.2 is a patch: `scripts/` and `.github/` are
-  not in the package, so the crate's code equals 1.0.1's. Read back: run green in all three jobs,
-  crates.io `max_version` 1.0.2, the GitHub Release `v1.0.2` created by the script.
+- 🗓️ **OWNER: finish 1.0.2's GitHub Release** (workspace H30). crates.io has 1.0.2, but run
+  42567711837's `release` job failed at the Bun download (a GitHub 504; [overview.md](overview.md)
+  § Release flow, the 1.0.2 entry). In the web UI: Actions → that run → **"Re-run failed jobs"**.
+  That re-runs only `release`, which waits for crates.io (instant), installs Bun and runs
+  `scripts/github-release.ts`. It measures the H30 step on GitHub for the first time. Read back
+  afterwards: the release job green, a GitHub Release `v1.0.2`. (Creating the release by hand in
+  the web UI instead would leave the script unmeasured until the next release.)
 
 
 - 🟡 **Previous-tag tests and the SPEC check run in `bump.ts` only, not in CI** (CI clones
