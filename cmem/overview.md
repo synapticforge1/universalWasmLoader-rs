@@ -7,8 +7,8 @@ The **Rust port** of the Universal WASM Loader reference (JavaScript) implementa
 **Canonical ABI translation** automatically, so a Rust host can call WASM exports with native Rust
 types (numbers direct, strings/bools marshalled) without writing any `wasmtime` glue by hand.
 
-- **Crate:** `universal-wasm-loader` (`Cargo.toml`), version `1.0.0` (SPEC 4.0.0; bumped and
-  tagged 2026-11-08 on the owner's "yes release 1.0.0"; 0.2.0 published 2026-10-26; history under Tests & build/release),
+- **Crate:** `universal-wasm-loader` (`Cargo.toml`), version `1.0.0` (SPEC 4.0.0; published
+  2026-11-09T02:16Z UTC on the owner's "yes release 1.0.0", read back; history under Tests & build/release),
   license MIT.
 - **Language / runtime:** Rust (edition 2021), backed by the **`wasmtime` crate, pinned at v28**.
 - **Registry:** published to **crates.io**.
@@ -264,12 +264,19 @@ the two **SPEC §10** tests below.
     Checked locally 2026-11-08 (scratch scripts, deleted): Bun.YAML parses it to that graph, 0
     `uses:`, the secret in one step; the tag step against GitHub: right commit 0, wrong commit 1,
     absent tag 1; the probe: 0.2.0 → 200, 1.0.0 → 404; `cargo +1.99.1 test --locked` 66/66.
-    UNMEASURED on GitHub until 1.0.0's run.
+    Measured on GitHub by 1.0.0's run 42549004225 (all jobs green; release record below).
   - **`1.0.0` (2026-11-08) = SPEC 4.0.0 + the C30 workflow.** Owner: "yes release 1.0.0. yes
     merge and push". `bump.ts major` through the full gate: floor major (set by `SPEC 3.0.0 ->
     4.0.0`), v0.2.0's tests 30/30 on the new src, `Cargo.lock` = 1.0.0 (one line). README
-    dependency lines `"0.2"` → `"1.0"`, Breaking Changes row stamped `1.0.0`. The first release
-    through the three-job workflow; its read-back is in [open-work.md](open-work.md) until done.
+    dependency lines `"0.2"` → `"1.0"`, Breaking Changes row stamped `1.0.0`. Release commit
+    `9240b11` = tag `v1.0.0` = `origin/main` (`ls-remote`). **Run 42549004225: green in all
+    three jobs and every step** — the first run of the C30 split, so it is MEASURED now (the
+    pinned rustup install, the tokenless clones, the tag check, the crates.io probe, `--no-verify`
+    publish, the wait-then-`gh` release). Read back: crates.io `max_version` **1.0.0** (created
+    2026-11-09T02:16:03Z UTC); GitHub Release `v1.0.0` published 02:16:12Z. As a user: a fresh
+    scratch crate depending on `universal-wasm-loader = "1.0"` (resolved from the crates.io
+    index) prints `SPEC_VERSION 4.0.0`, `add(3, 4) = 7`, and refuses `add("x", 1)` and
+    `imports_50` without callbacks, each with its message.
   - **On crates.io: `0.1.0` (2026-06-24), `0.1.1` (2026-10-22), `0.2.0` (2026-10-26T22:53Z).**
     0.2.0 = the minor that adds `SPEC_VERSION`; bumped through the full gate (floor patch,
     `v0.1.1` tests 26/26 on the new src, SPEC 3.0.0 = reference), bump commit `c8f2e11`, tag
