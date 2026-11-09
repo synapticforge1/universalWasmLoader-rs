@@ -7,8 +7,9 @@ The **Rust port** of the Universal WASM Loader reference (JavaScript) implementa
 **Canonical ABI translation** automatically, so a Rust host can call WASM exports with native Rust
 types (numbers direct, strings/bools marshalled) without writing any `wasmtime` glue by hand.
 
-- **Crate:** `universal-wasm-loader` (`Cargo.toml`), version `1.0.1` (SPEC 4.0.0; published
-  2026-11-09T02:58Z UTC, read back; 1.0.0 = the SPEC 4.0.0 release; history under Tests & build/release),
+- **Crate:** `universal-wasm-loader` (`Cargo.toml`), version `1.0.2` (SPEC 4.0.0; on crates.io
+  and as GitHub Release `v1.0.2`, 2026-11-09, both read back; 1.0.0 = the SPEC 4.0.0 release;
+  history under Tests & build/release),
   license MIT.
 - **Language / runtime:** Rust (edition 2021), backed by the **`wasmtime` crate, pinned at v28**.
 - **Registry:** published to **crates.io**.
