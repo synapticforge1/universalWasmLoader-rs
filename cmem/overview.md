@@ -263,10 +263,22 @@ the two **SPEC §10** tests below.
       skip the upload, 404 → publish, anything else → fail); `cargo publish --locked --no-verify`
       with `CARGO_REGISTRY_TOKEN` in that ONE step. `--no-verify` is the point: publish's verify
       step rebuilt the crate, running dependencies' build scripts with the registry token in env.
-    - `release` {contents: write} — no checkout, no build; runs when `checks` passed and
-      `publish` was not cancelled, EVEN IF `publish` failed (workspace C34: a failure after the
-      upload must not strand the GitHub Release); waits up to 5 min for crates.io to answer 200
-      for the version, then `gh release create --verify-tag` (skipped when the release exists).
+    - `release` {contents: write} — no build; runs when `checks` passed and `publish` was not
+      cancelled, EVEN IF `publish` failed (workspace C34: a failure after the upload must not
+      strand the GitHub Release); waits up to 5 min for crates.io to answer 200 for the version.
+      **Since 2026-11-09 (workspace H30: no GitHub CLI, in CI too)** it then clones without
+      credentials (HEAD = `github.sha`), installs Bun **1.4.4** pinned by sha256 (`bf8ccbfb…`,
+      matched in Bun's SHASUMS256.txt AND loader-go's `release.yml`), and runs
+      `bun scripts/github-release.ts` with `GITHUB_TOKEN`: the tag must exist on GitHub and peel
+      to `github.sha` (annotated tags followed) — `POST /releases` would otherwise CREATE a missing
+      tag from the default branch, which the CLI's `--verify-tag` used to refuse; an existing
+      release → exit 0; else `POST /releases` {generate_release_notes} → 201, then read back.
+      Until 1.0.1 this step was the CLI (`release view` / `release create --verify-tag`).
+      Proof 2026-11-09 (scratch, deleted): against real GitHub read-only with `--dry-run` —
+      `v1.0.1` + its commit → "already exists" 0, `v1.0.1` + 1.0.0's commit → refused 1, `v9.9.9`
+      → refused 1; against a mock API (`GITHUB_API_URL`) — annotated tag peeled, dry-run and
+      no-token send no POST, a 422 POST → 1, create → 201 with `Bearer` + the body then read
+      back, re-run → no POST. UNMEASURED on GitHub until the next tag run.
     Checked locally 2026-11-08 (scratch scripts, deleted): Bun.YAML parses it to that graph, 0
     `uses:`, the secret in one step; the tag step against GitHub: right commit 0, wrong commit 1,
     absent tag 1; the probe: 0.2.0 → 200, 1.0.0 → 404; `cargo +1.99.1 test --locked` 66/66.
@@ -278,7 +290,7 @@ the two **SPEC §10** tests below.
     `9240b11` = tag `v1.0.0` = `origin/main` (`ls-remote`). **Run 42549004225: green in all
     three jobs and every step** — the first run of the C30 split, so it is MEASURED now (the
     pinned rustup install, the tokenless clones, the tag check, the crates.io probe, `--no-verify`
-    publish, the wait-then-`gh` release). Read back: crates.io `max_version` **1.0.0** (created
+    publish, the wait-then-CLI release, replaced by the REST script since). Read back: crates.io `max_version` **1.0.0** (created
     2026-11-09T02:16:03Z UTC); GitHub Release `v1.0.0` published 02:16:12Z. As a user: a fresh
     scratch crate depending on `universal-wasm-loader = "1.0"` (resolved from the crates.io
     index) prints `SPEC_VERSION 4.0.0`, `add(3, 4) = 7`, and refuses `add("x", 1)` and

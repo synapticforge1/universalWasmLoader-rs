@@ -40,7 +40,7 @@ H25, H28). Where this file and the floor disagree, the floor wins until the owne
 - **Test counts (2026-11-08):** 2 parser unit + 1 fixture stamp + 28 refusals + 26 spec + 1
   SPEC-version + 8 doc-tests = 66.
 
-## Tooling (workspace Tooling rules 1–8, 🔒 owner)
+## Tooling (workspace Tooling rules 1–9, 🔒 owner)
 
 1. **Committed scripts are TypeScript run by Bun** (`bun scripts/<name>.ts`, `node:` builtins,
    never `Deno.*`). Rust has no scripting mechanism that does not build an executable
@@ -58,6 +58,12 @@ H25, H28). Where this file and the floor disagree, the floor wins until the owne
 7. **LF everywhere, pinned wildcard-first in `.gitattributes`** (`* text=auto eol=lf`, then
    `*.wasm binary`); never fix line endings with `git config`.
 8. **Never run a formatter on `cmem/` or `tests/` fixtures.**
+9. **No GitHub CLI, anywhere, CI included** (🔒 owner, 2026-11-08; workspace H30 and Tooling rule
+   9). Read what GitHub holds with git itself (`git ls-remote origin`, `git fetch`) and registries'
+   public APIs (crates.io). In a workflow, call GitHub's REST API from a Bun step with the job's
+   `GITHUB_TOKEN` (`scripts/github-release.ts`), never the runner's preinstalled CLI. A task only
+   the web UI can do is an OWNER item, never "blocked on the CLI". A workflow change is proven by
+   its next real run, so land it before a release, never mid-release.
 
 ## Privacy (🔒 owner, 2026-10-22 / -23 / -26)
 
