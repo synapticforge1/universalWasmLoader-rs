@@ -11,7 +11,7 @@ Backed by [wasmtime](https://crates.io/crates/wasmtime). Works with any `.wasm` 
 
 ```toml
 [dependencies]
-universal-wasm-loader = "0.2"
+universal-wasm-loader = "1.0"
 ```
 
 ```rust
@@ -110,7 +110,7 @@ fn main() -> anyhow::Result<()> {
 
 ```toml
 [dependencies]
-universal-wasm-loader = "0.2"
+universal-wasm-loader = "1.0"
 tokio = { version = "1", features = ["full"] }
 ```
 
@@ -265,7 +265,7 @@ major version and is listed here with its migration.
 
 | Version | Breaking change | Migration |
 | --- | --- | --- |
-| _next release_ | SPEC 4.0.0, loud failures. (1) Only an absent `.wit` (no file, HTTP 404 / 410, a path not ending in `.wasm`) gives raw exports; any other `.wit` failure is an error. (2) The `.wit` is parsed strictly: unknown types such as `u32` are no longer read as `s32`, and `wit_parser::parse_wit` now returns `Result<ParsedWit>`. (3) Every WIT import needs a callback; a missing one is no longer a silent `0`. (4) A callback's return kind is checked. (5) Typed-call arguments are checked: no extra arguments dropped, no `bool` default for a non-bool. (6) Each http(s) fetch has a 30 s limit. | Pass a callback for every WIT import. Use the exact Rust type for each WIT type (`i32` for `s32`, `f64` for `f64`), in calls and in callback results. Fix or remove a `.wit` that does not parse. For a slow server, use `wasm_import_with_options` with a longer `LoadOptions::timeout` or `no_timeout()`. |
+| 1.0.0 | SPEC 4.0.0, loud failures. (1) Only an absent `.wit` (no file, HTTP 404 / 410, a path not ending in `.wasm`) gives raw exports; any other `.wit` failure is an error. (2) The `.wit` is parsed strictly: unknown types such as `u32` are no longer read as `s32`, and `wit_parser::parse_wit` now returns `Result<ParsedWit>`. (3) Every WIT import needs a callback; a missing one is no longer a silent `0`. (4) A callback's return kind is checked. (5) Typed-call arguments are checked: no extra arguments dropped, no `bool` default for a non-bool. (6) Each http(s) fetch has a 30 s limit. | Pass a callback for every WIT import. Use the exact Rust type for each WIT type (`i32` for `s32`, `f64` for `f64`), in calls and in callback results. Fix or remove a `.wit` that does not parse. For a slow server, use `wasm_import_with_options` with a longer `LoadOptions::timeout` or `no_timeout()`. |
 | 0.1.0 → 0.2.0 | none (0.1.1 and 0.2.0 are compatible; 0.2.0 adds `SPEC_VERSION`) | — |
 
 ---
