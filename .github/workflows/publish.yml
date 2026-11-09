@@ -9,12 +9,13 @@ name: Publish
 #             is still the commit `checks` passed. `cargo publish --no-verify` (no build: `checks`
 #             verified this commit) with CARGO_REGISTRY_TOKEN in that one step only. Skips the
 #             upload when crates.io already has the version, so a re-run is safe.
-#   release - contents: write, no build. Runs once crates.io answers 200 for the version, even
-#             when `publish` failed AFTER its upload (workspace C34: otherwise a published version
-#             would never get its GitHub Release). Then `bun scripts/github-release.ts` creates the
-#             release through GitHub's REST API with the job's token — not the GitHub CLI
-#             (workspace H30) —
-#             after checking that the tag is still this run's commit.
+#   release - contents: write, no build and NO checkout. Runs once crates.io answers 200 for the
+#             version, even when `publish` failed AFTER its upload (workspace C34: otherwise a
+#             published version would never get its GitHub Release page). It fetches ONE file,
+#             `scripts/github-release.ts`, at `github.sha`, and runs it: GitHub's REST API with
+#             the job's token, not the GitHub CLI (workspace H30), in H32's order (the tag
+#             peels to this commit / an existing page = done / POST, read back, peel again),
+#             30 s per request. `checks` runs that script's tests first.
 #
 # Every step is `run:`; there is no `uses:` (the synapticforge1 org's policy for third-party
 # actions is unprobed here). Pinned: Rust through the runner's rustup, which verifies the signed
@@ -74,6 +75,21 @@ jobs:
       - name: Test (gate)
         run: cargo test --locked
 
+      - name: Install Bun (pinned by sha256)
+        run: |
+          curl -fsSL --retry 6 --retry-delay 10 --retry-all-errors --connect-timeout 30 --max-time 300 \
+            -o "$RUNNER_TEMP/bun.zip" "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip"
+          echo "${BUN_SHA256}  $RUNNER_TEMP/bun.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP" && mkdir -p "$HOME/.bun/bin"
+          mv "$RUNNER_TEMP/bun-linux-x64/bun" "$HOME/.bun/bin/" && rm -rf "$RUNNER_TEMP/bun.zip" "$RUNNER_TEMP/bun-linux-x64"
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+          "$HOME/.bun/bin/bun" --version
+
+      # The release-page script's own tests (workspace H32): a mock GitHub API, before any tag can
+      # publish. A failure here stops `publish` and `release` both.
+      - name: Test the release-page script
+        run: bun test scripts/
+
       # The compatibility gate, repeated on the tag (workspace letter H6): the Cargo.toml version
       # must be a large enough bump over the latest crates.io release for the API diff.
       - name: Compatibility gate (cargo semver-checks)
@@ -118,7 +134,7 @@ jobs:
         id: probe
         run: |
           v="${GITHUB_REF_NAME#v}"
-          code=$(curl -s -o /dev/null -w '%{http_code}' -A "$CRATES_UA" "https://crates.io/api/v1/crates/$CRATE/$v")
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 -A "$CRATES_UA" "https://crates.io/api/v1/crates/$CRATE/$v")
           echo "crates.io answers $code for $CRATE $v"
           case "$code" in
             200) echo "skip=true" >> "$GITHUB_OUTPUT" ;;
@@ -149,7 +165,7 @@ jobs:
         run: |
           v="${GITHUB_REF_NAME#v}"
           for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' -A "$CRATES_UA" "https://crates.io/api/v1/crates/$CRATE/$v")
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 -A "$CRATES_UA" "https://crates.io/api/v1/crates/$CRATE/$v")
             if [ "$code" = "200" ]; then
               echo "crates.io serves $CRATE $v"
               exit 0
@@ -160,14 +176,13 @@ jobs:
           echo "::error::crates.io does not serve $CRATE $v; no GitHub Release"
           exit 1
 
-      - name: Checkout (no credentials)
+      # No checkout (workspace C30 / H32): no package code sits beside the write token. Only the
+      # release-page script is fetched, at the exact commit `checks` tested.
+      - name: Fetch the release-page script at the tagged commit
         run: |
-          git clone --depth=1 --branch "$GITHUB_REF_NAME" "https://github.com/$GITHUB_REPOSITORY" .
-          head=$(git rev-parse HEAD)
-          if [ "$head" != "$GITHUB_SHA" ]; then
-            echo "::error::the tag moved: it is $head, this run is for $GITHUB_SHA"
-            exit 1
-          fi
+          curl -fsSL --retry 3 --retry-delay 5 --max-time 60 -o github-release.ts \
+            "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/scripts/github-release.ts"
+          head -n 3 github-release.ts
 
       # GitHub's release-download service answered 504 to 1.0.2's run (42567711837) while serving
       # the same file to other clients: retry transient failures. The sha256 check below still
@@ -181,10 +196,10 @@ jobs:
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
           "$HOME/.bun/bin/bun" --version
 
-      # GitHub's REST API with the job's own token (workspace H30: no GitHub CLI, in CI too). The script
-      # refuses unless the tag still peels to this run's commit: POST /releases would otherwise
-      # create a missing tag from the default branch.
-      - name: Create GitHub Release
+      # GitHub's REST API with the job's own token (workspace H30: no GitHub CLI, in CI too), in
+      # H32's order. The script refuses unless the tag still peels to this run's commit: POST
+      # /releases would otherwise create a missing tag from the default branch.
+      - name: Create the GitHub Release page (REST API)
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: bun scripts/github-release.ts
+        run: bun github-release.ts

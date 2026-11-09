@@ -283,6 +283,25 @@ the two **SPEC §10** tests below.
       (the owner's "Re-run failed jobs"): every `release` step green; GitHub Release `v1.0.2`
       created by `github-actions[bot]` with generated notes; tag `v1.0.2` still `027df43` (no tag
       created or moved).
+      **Since 2026-11-09 later (workspace H32, the release-page recipe; C40's time limit):**
+      the `release` job checks out NOTHING. It fetches the one file
+      `raw.githubusercontent.com/<repo>/<github.sha>/scripts/github-release.ts`
+      (`curl --max-time 60 --retry 3`; that URL serves the exact git blob at a commit, measured:
+      `v1.0.3`'s copy = blob `7e62301`), installs the pinned Bun and runs it. The script keeps H32's
+      order: (1) the tag peels to `github.sha`; (2) an existing page = done, NOTHING written;
+      (3) POST with `crates.io: https://crates.io/crates/<crate>/<v>` on top of
+      `generate_release_notes`, read back (the tag, `draft: false`), then the tag is peeled AGAIN.
+      Every request has one 30 s limit, request to last byte (`AbortSignal.timeout`;
+      `RELEASE_TIMEOUT_MS`); the two crates.io curls got `--max-time 30`. **Tests, committed:**
+      `scripts/github-release.test.ts` (`bun test scripts/`, run in `checks` before anything
+      publishes), 12 cases on a `Bun.serve` mock that records every request, the script as a
+      `Bun.spawn` child: lightweight / annotated create (link on top, second peel AFTER the POST);
+      missing / other-commit tag → no POST; existing page → no write; POST 422; draft read-back;
+      tag moved by the POST; stalled API → `timed out after 300 ms`; dry-run; no token; non-`vX.Y.Z`
+      tag → no request. Inverted by four one-line mutants, each red only in its own case: no sha
+      check, no existing-page stop, no time limit, no second peel. Real GitHub, read-only, the
+      script ALONE in an empty folder: `v1.0.3` at `45d9f59` → "already exists, nothing written";
+      at `027df43` → refused; `v9.9.9` → refused. UNMEASURED on GitHub until the next tag.
     Checked locally 2026-11-08 (scratch scripts, deleted): Bun.YAML parses it to that graph, 0
     `uses:`, the secret in one step; the tag step against GitHub: right commit 0, wrong commit 1,
     absent tag 1; the probe: 0.2.0 → 200, 1.0.0 → 404; `cargo +1.99.1 test --locked` 66/66.
