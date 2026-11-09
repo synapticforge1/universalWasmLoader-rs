@@ -278,7 +278,10 @@ the two **SPEC §10** tests below.
       `v1.0.1` + its commit → "already exists" 0, `v1.0.1` + 1.0.0's commit → refused 1, `v9.9.9`
       → refused 1; against a mock API (`GITHUB_API_URL`) — annotated tag peeled, dry-run and
       no-token send no POST, a 422 POST → 1, create → 201 with `Bearer` + the body then read
-      back, re-run → no POST. UNMEASURED on GitHub until the next tag run.
+      back, re-run → no POST. **MEASURED on GitHub 2026-11-09** by run 42567711837 attempt 2
+      (the owner's "Re-run failed jobs"): every `release` step green; GitHub Release `v1.0.2`
+      created by `github-actions[bot]` with generated notes; tag `v1.0.2` still `027df43` (no tag
+      created or moved).
     Checked locally 2026-11-08 (scratch scripts, deleted): Bun.YAML parses it to that graph, 0
     `uses:`, the secret in one step; the tag step against GitHub: right commit 0, wrong commit 1,
     absent tag 1; the probe: 0.2.0 → 200, 1.0.0 → 404; `cargo +1.99.1 test --locked` 66/66.
@@ -315,8 +318,10 @@ the two **SPEC §10** tests below.
     Hardening in `publish.yml`: the download retries (`--retry 6 --retry-delay 10
     --retry-all-errors`, 30 s connect, 300 s total); the sha256 check still decides what runs.
     Measured locally: four 504s, then success, `bun.zip: OK`. A re-run of the failed job uses
-    the tagged commit's workflow (no retry), so it succeeds only while the download serves —
-    UNMEASURED until the owner re-runs it (open-work).
+    the tagged commit's workflow (no retry), so it succeeds only while the download serves.
+    **The owner re-ran it (attempt 2, 2026-11-09): `release` green in every step**, and the
+    GitHub Release `v1.0.2` was published 05:45:51Z by the script (read back through the API).
+    1.0.2 is now complete on crates.io and GitHub.
   - **On crates.io: `0.1.0` (2026-06-24), `0.1.1` (2026-10-22), `0.2.0` (2026-10-26T22:53Z),
     `1.0.0` (2026-11-09T02:16Z), `1.0.1` (2026-11-09T02:58Z), `1.0.2` (2026-11-09).**
     0.2.0 = the minor that adds `SPEC_VERSION`; bumped through the full gate (floor patch,
