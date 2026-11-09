@@ -52,10 +52,11 @@ types (numbers direct, strings/bools marshalled) without writing any `wasmtime` 
 | --- | --- |
 | `src/lib.rs` | Public API: `wasm_load`, `wasm_import`, `create_singleton`, `InstancePool`, `ModuleExports`, `Callbacks`, the `wasm_interface!` macro, and the internal `AbiKind` (Component / Wasic) |
 | `src/abi.rs` | ABI translation: import linker (`link_import_env`) + export callers (`call_wasic_export`, `call_component_export`, `call_raw_export`); `WasmVal` value enum; `HostCallback` type |
-| `src/wit_parser.rs` | Regex-based WIT parser (no parser deps); each `WitFunc` carries three name forms — `name` (kebab), `camel_name` (the actual WASM export name), `snake_name` (the Rust API key) |
+| `src/wit_parser.rs` | STRICT WIT parser (SPEC 4.0.0 §2, since 2026-11-08), a port of -js `wit-parser.js` 2.0.0 with the same grammar and fault messages; `parse_wit` returns `Result<ParsedWit>` (was infallible and loose: `u32` → `s32`, a comma-less param dropped). Each `WitFunc` carries three name forms — `name` (kebab), `camel_name` (the actual WASM export name), `snake_name` (the Rust API key) |
 | `src/types.rs` | Type-conversion traits (`IntoWasmVal`/`FromWasmVal`/`WasmArgs`/`FromWasmArgs`) and `host_fn` helper |
 | `src/wasi.rs` | **SPEC §10.2** minimal WASI-P1 shim: `link_wasi_shim(&mut Linker<()>)` registers the small `wasi_snapshot_preview1` subset via `linker.func_wrap` (`fd_write`→stdout/stderr, `proc_exit`, `random_get`, `clock_time_get`, environ/args, `fd_close`/`fd_seek`/`fd_fdstat_get`). Hand-rolled on the existing `Store<()>` — deliberately **avoids** `wasmtime-wasi`/`WasiP1Ctx` (which would force `Store<WasiP1Ctx>`); minimal-invasiveness choice |
 | `tests/spec_tests.rs` | 26-assertion suite (incl. 2 §10 tests) |
+| `tests/refusals.rs` | SPEC 4.0.0 §8 "Refusals", 28 tests; scratch `.wit` files in a temp dir (never `tests/`, the stamp); http rows on a hand-rolled tokio `TcpListener` server (127.0.0.1, request counter per target, a `Stall` route) — no new dev-dependency |
 | `tests/fixtures_stamp.rs` | the fixture bytes ARE the stamped reference set (sha256 vs `tests/fixtures.json`) |
 
 **Fixtures (2026-10-26):** `tests/` holds universalWasmLoader-js's stamped reference set, copied
@@ -90,7 +91,16 @@ re-stamps (workspace letter H7, drift L3/X8).
 - **`Callbacks`** builder: `on(name, closure)` (typed) / `on_raw(name, HostCallback)`. Keys are
   **camelCase** WIT import names (e.g. `"envMul"`).
 - **`WasmVal`** — decoded value enum (`I32`/`I64`/`F32`/`F64`/`Bool`/`Str`/`Void`).
-- **`SPEC_VERSION: &str`** (added for 0.2.0, 2026-10-26) — the SPEC version implemented, `"3.0.0"`.
+- **`wasm_import_with_options(source, callbacks?, LoadOptions)`** (2026-11-08, SPEC 4.0.0 §1/§11)
+  — `wasm_import` = this with `LoadOptions::default()`. `LoadOptions` (opaque, builder):
+  `DEFAULT_TIMEOUT` 30 s, `.timeout(d)` (zero → load error), `.no_timeout()`,
+  `.cancel_token(CancelToken)`. `CancelToken` is the crate's own (`AtomicBool` + `tokio::Notify`;
+  `tokio-util` was not in the lock and is not added): `new`, `cancel`, `is_cancelled`. One limit
+  per fetch covers request → last byte (`tokio::time::timeout` around send + `bytes()`); a
+  `reqwest::Client` with no limits of its own. `wasm_load` / `create_singleton` / `InstancePool`
+  are file-only, so they take no options (n/a, as -c / -dotnet / -go).
+- **`SPEC_VERSION: &str`** (added for 0.2.0, 2026-10-26) — the SPEC version implemented, `"4.0.0"`
+  since 2026-11-08 (was `"3.0.0"`).
   The ONE source for the claim: `tests/spec_version.rs` fails if `README.md` or the crate doc
   (`src/lib.rs`) claims a different "Spec vX.Y.Z" (both said v2.0.0 until 2026-10-26 while the code
   was 3.0.0); `scripts/bump.ts` refuses a bump when it differs from the reference `SPEC.md`.
@@ -107,7 +117,29 @@ ABI kind is **auto-detected** from the module's exports: `cabi_realloc` present 
 - **Imports:** host callbacks registered into a `Linker<()>` under the `"env"` namespace before
   instantiation; memory resolved from `caller.get_export("memory")` at call time.
 
-### ✅ SPEC conformance status — ALIGNED TO SPEC 3.0.0 (2026-06-15, VERIFIED)
+### ✅ SPEC 4.0.0 — loud failures (2026-11-08, workspace letters H29 / C29; branch `spec-4.0.0`)
+
+The SPEC is -js's 4.0.0 (released with -js 2.0.0 on 2026-11-07). What 0.2.0 did, MEASURED with
+the new `tests/refusals.rs` on v0.2.0's `src/` (scratch crate; the 4 options tests cannot compile
+there): **20 red, 4 green** — the green 4 are behaviours 0.2.0 already had (absent `.wit` → raw,
+HTTP 404/410 `.wit` → raw, a callback's `Err` reaches the caller, a typed http load). Item by item:
+
+| Rule | 0.2.0 | now |
+| --- | --- | --- |
+| §2 absent vs failed | ANY `.wit` read failure → raw (`.ok()`); http `.wit` non-2xx / network error → raw; the `.wasm` fetched FIRST; `set_extension("wit")` made `math.bin` read `math.wit`; a `?query` kept on the `.wit` URL | `.wit` first; raw only on `NotFound`, HTTP 404 / 410, or a path not ending in `.wasm` (case-insensitive); else `cannot read .wit` / `HTTP <status> for <url>` / not UTF-8, before the `.wasm`; query + fragment dropped |
+| §2 strict parsing | regex, never failed (garbage → empty world → typed module with no exports) | `parse_wit` → `Result`; `invalid .wit '<path or url>': <fault>`; a WIT export the module lacks fails the load (`check_exports`, after instantiation) |
+| §4 callbacks | missing → `default_wasm_val` (0 / false / ""); result coerced (`I32` for bool, `F64` for anything, else `I32(0)`) | all missing named at load, before the `.wasm` (`check_imports`); `string`-result import refused at load; result kind EXACT (`F32` for `-> f64` refused), error names callback / import / type / value; void import ignores the value. Promise row: n/a by type — `HostCallback` returns `Result<WasmVal>` and no future implements `IntoWasmVal` |
+| §4 typed calls | `zip` silently dropped extra args; bool param `unwrap_or(false)` | `check_args`: count + exact kind, naming export / parameter / WIT type; the result accessor (`call::<_, R>`) already refused a wrong kind, now names the export |
+| §11 time limit | none: a stalled `.wit` server MEASURED still waiting after 5 s (scratch probe) | 30 s default per fetch, `LoadOptions`, `CancelToken`; one request per file |
+
+Beyond the letter: `@N` now takes ASCII digits only (SPEC §3; `parse::<i32>` took `+5` / `-1`);
+a `version` global that is not i32 is an error (was a panic in `unwrap_i32`); a string write past
+linear memory is an error (was a slice panic). Inverted on the new code with mutants in a scratch
+copy: "cancel ignored" → exactly the already-cancelled test red; "`.wit` non-2xx → raw" + "zero
+limit allowed" → exactly those 2 tests red. Not inverted by mutant: the stall-timeout and
+cancel-during-stall tests (a mutant would hang); the 0.2.0 stall measurement stands in.
+
+### SPEC 3.0.0 conformance (2026-06-15, VERIFIED) — still holds under 4.0.0
 
 The cross-language `SPEC.md` is at **v3.0.0 (2026-06-15)** — a **BREAKING** change. String /
 aggregate **RETURNS** moved from the old **caller-allocated out-parameter** convention to the
@@ -133,7 +165,8 @@ callee-allocated `[ptr, len]` pair, and the host reads that pair then calls a pa
 
 **The local reference clone `upstream/universalWasmLoader-js/`** (gitignored, not shipped) was a
 2.x snapshot with a hand-edited `SPEC.md` until 2026-10-26 (drift L5); it was fast-forwarded that
-day to -js `origin/main` `bcab4b4` (SPEC 3.0.0, 3.x `abi.js`, `wasi.js`). Never hand-edit it —
+day to -js `origin/main` `bcab4b4` (SPEC 3.0.0, 3.x `abi.js`, `wasi.js`), and on 2026-11-08 to
+`8d5af30` (SPEC 4.0.0, -js 2.0.0 = tag `v2.0.0` `1169ab9` + memory commits). Never hand-edit it —
 `git -C upstream/universalWasmLoader-js pull --ff-only` refreshes it; the sibling checkout
 `../universalWasmLoader-js` is the same repository.
 
@@ -157,8 +190,9 @@ the two **SPEC §10** tests below.
 
 ## Tests & build/release
 
-- **Test command:** `cargo test`. Status 2026-10-26: **26/26 assertions pass** (`tests/spec_tests.rs`)
-  + 1 fixture-stamp test + 1 SPEC-version test + 7 doc-tests. Covers numeric passthrough, bool normalization, string params+returns, host-import
+- **Test command:** `cargo test`. Status 2026-11-08: **66 green** — 2 parser unit tests + 1
+  fixture stamp + 28 refusals (`tests/refusals.rs`) + 26 spec (`tests/spec_tests.rs`) + 1
+  SPEC-version + 8 doc-tests (2026-10-26: 35). Covers numeric passthrough, bool normalization, string params+returns, host-import
   callbacks, singleton identity, pool acquire/release, `bind`, `wasm_interface!`, and the 2 §10 tests.
   All tests are sync `#[test]` except the two `InstancePool` tests which are `#[tokio::test]`.
 - **Build:** no build step beyond cargo — `src/*.rs` are the source of truth.
@@ -191,8 +225,12 @@ the two **SPEC §10** tests below.
     blind) → 17 passed / 9 failed, minor refused, major allowed. (b) SPEC — `SPEC_VERSION` must
     equal `Version:` in -js `origin/main:SPEC.md`, read from the fetched `upstream/` clone (absent
     clone = error); mutant `3.1.0` refused. A `SPEC_VERSION` change since the tag raises the floor
-    by its level — ⬜ UNMEASURED: no tag carries the const before 0.2.0, so that branch cannot fire
-    yet; invert it at the first SPEC change. (c) After writing `Cargo.toml` it runs
+    by its level — **MEASURED 2026-11-08 at the first SPEC change (3.0.0 → 4.0.0, branch
+    `spec-4.0.0`):** `bump.ts minor --dry-run` → floor major "set by: SPEC 3.0.0 -> 4.0.0", minor
+    refused, exit 1; `major --dry-run` → allowed, v0.2.0's tests 30 passed / 0 failed, exit 0.
+    The branch fired ALONE: cargo-semver-checks 0.51.0 floored that diff at patch although
+    `wit_parser::parse_wit` changed its return type `ParsedWit` → `Result<ParsedWit>` — it has no
+    lint for a changed return type, a second blind spot beside additions. (c) After writing `Cargo.toml` it runs
     `cargo update --workspace --offline` so `Cargo.lock` carries the new version (CI is `--locked`).
   - **`bun scripts/release.ts`** — reads the `Cargo.toml` version, commits any pending bump of
     `Cargo.toml`/`Cargo.lock`, then `git tag -f vX.Y.Z` + `git push` + `git push -f origin vX.Y.Z`.

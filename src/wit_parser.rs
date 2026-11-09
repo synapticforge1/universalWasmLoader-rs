@@ -1,3 +1,11 @@
+//! Strict WIT parser for the subset `wasmtk` writes (SPEC 4.0.0 §2 "Parsing").
+//!
+//! A port of universalWasmLoader-js `wit-parser.js` 2.0.0: the same grammar and the same fault
+//! messages. Anything outside the grammar is an error — a `.wit` is never read loosely.
+
+use anyhow::{anyhow, bail, Result};
+use std::fmt;
+
 /// Parsed WIT type.
 #[derive(Debug, Clone, PartialEq)]
 pub enum WitType {
@@ -9,17 +17,33 @@ pub enum WitType {
     Str,
 }
 
+/// The WIT types this loader translates (SPEC §4); any other type is an error.
+const WIT_TYPES: &str = "s32, s64, f32, f64, bool, string";
+
 impl WitType {
-    fn from_str(s: &str) -> Self {
-        match s.trim() {
+    fn parse(raw: &str, place: &str) -> Result<Self> {
+        Ok(match raw.trim() {
             "s32" => Self::S32,
             "s64" => Self::S64,
             "f32" => Self::F32,
             "f64" => Self::F64,
             "bool" => Self::Bool,
             "string" => Self::Str,
-            _ => Self::S32,
-        }
+            t => bail!("unsupported WIT type \"{t}\" in {place} (supported: {WIT_TYPES})"),
+        })
+    }
+}
+
+impl fmt::Display for WitType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::S32 => "s32",
+            Self::S64 => "s64",
+            Self::F32 => "f32",
+            Self::F64 => "f64",
+            Self::Bool => "bool",
+            Self::Str => "string",
+        })
     }
 }
 
@@ -75,57 +99,149 @@ pub fn kebab_to_camel(s: &str) -> String {
     result
 }
 
-fn parse_params(raw: &str) -> Vec<WitParam> {
-    let raw = raw.trim();
-    if raw.is_empty() {
-        return vec![];
+fn regex(pattern: &str) -> regex_lite::Regex {
+    regex_lite::Regex::new(pattern).expect("valid regex")
+}
+
+/// A WIT identifier: kebab-case words of letters and digits.
+fn is_ident(s: &str) -> bool {
+    regex(r"^[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*$").is_match(s)
+}
+
+/// `raw` is the text between the parentheses of `func(...)`; `fn_label` is e.g. `export add`.
+fn parse_params(raw: &str, fn_label: &str) -> Result<Vec<WitParam>> {
+    // A trailing comma is valid WIT: `func(a: s32,)`.
+    let mut parts: Vec<&str> = raw.split(',').map(str::trim).collect();
+    if parts.last() == Some(&"") {
+        parts.pop();
     }
-    raw.split(',')
-        .filter_map(|part| {
-            let colon = part.find(':')?;
-            let raw_name = part[..colon].trim();
-            let ty = WitType::from_str(&part[colon + 1..]);
-            Some(WitParam { name: kebab_to_snake(raw_name), ty })
-        })
-        .collect()
+    let param_re = regex(r"^([^:\s]+)\s*:\s*(\S+)$");
+    let mut params = Vec::with_capacity(parts.len());
+    let mut seen: Vec<&str> = Vec::new();
+    for part in parts {
+        let cap = param_re
+            .captures(part)
+            .filter(|c| is_ident(c.get(1).map_or("", |m| m.as_str())))
+            .ok_or_else(|| anyhow!("malformed parameter \"{part}\" in {fn_label} (expected \"name: type\")"))?;
+        let raw_name = cap.get(1).map_or("", |m| m.as_str());
+        if seen.contains(&raw_name) {
+            bail!("duplicate parameter \"{raw_name}\" in {fn_label}");
+        }
+        seen.push(raw_name);
+        let ty = WitType::parse(&cap[2], &format!("{fn_label}, parameter {raw_name}"))?;
+        params.push(WitParam { name: kebab_to_snake(raw_name), ty });
+    }
+    Ok(params)
 }
 
-fn parse_funcs(body: &str, keyword: &str) -> Vec<WitFunc> {
-    let pattern = format!(
-        r"\b{}\s+([\w-]+)\s*:\s*func\s*\(([^)]*)\)(?:\s*->\s*([\w-]+))?\s*;",
-        keyword
-    );
-    let re = regex_lite::Regex::new(&pattern).expect("valid regex");
-    re.captures_iter(body)
-        .map(|cap| {
-            let name = cap[1].to_string();
-            let camel_name = kebab_to_camel(&name);
-            let snake_name = kebab_to_snake(&name);
-            let params = parse_params(&cap[2]);
-            let result = cap.get(3).map(|m| WitType::from_str(m.as_str()));
-            WitFunc { name, camel_name, snake_name, params, result }
-        })
-        .collect()
+/// Parse a WIT source string in the subset `wasmtk` produces: an optional `package` line and one
+/// `world` holding only `import` / `export` function statements, with `//` comments.
+///
+/// Anything else — a malformed statement or parameter, an unsupported type (`u32` is never read
+/// as another type), a duplicate name, text outside the world — is an error naming the fault
+/// (SPEC 4.0.0 §2).
+pub fn parse_wit(src: &str) -> Result<ParsedWit> {
+    let src = src.strip_prefix('\u{feff}').unwrap_or(src);
+    let code = regex(r"//[^\n]*").replace_all(src, "");
+
+    let mut rest = code.trim();
+    let mut package_name = String::new();
+    if let Some(cap) = regex(r"^package\s+([^\s;]+)\s*;").captures(rest) {
+        package_name = cap[1].to_string();
+        let end = cap.get(0).map_or(0, |m| m.end());
+        rest = rest[end..].trim();
+    }
+
+    let world = regex(r"^world\s+([^\s{]+)\s*\{([^{}]*)\}$").captures(rest).ok_or_else(|| {
+        if rest.is_empty() {
+            anyhow!("not a WIT world: it is empty")
+        } else {
+            let head: String = rest.chars().take(60).collect();
+            anyhow!("not a WIT world: expected one \"world <name> {{ ... }}\" block, found: {head}")
+        }
+    })?;
+    let world_name = world[1].to_string();
+    if !is_ident(&world_name) {
+        bail!("malformed world name \"{world_name}\"");
+    }
+
+    let func_re = regex(r"^(import|export)\s+([^\s:]+)\s*:\s*func\s*\(([^()]*)\)\s*(?:->\s*(\S+))?$");
+    let mut imports: Vec<WitFunc> = Vec::new();
+    let mut exports: Vec<WitFunc> = Vec::new();
+    let mut statements: Vec<&str> = world[2].split(';').map(str::trim).collect();
+    let last = statements.pop().unwrap_or("");
+    if !last.is_empty() {
+        bail!("unterminated WIT statement (missing \";\"): {last}");
+    }
+    let ws = regex(r"\s+");
+    for stmt in statements {
+        let cap = func_re
+            .captures(stmt)
+            .ok_or_else(|| anyhow!("unsupported or malformed WIT statement: {}", ws.replace_all(stmt, " ")))?;
+        let keyword = &cap[1];
+        let name = cap[2].to_string();
+        let fn_label = format!("{keyword} {name}");
+        if !is_ident(&name) {
+            bail!("malformed function name in {fn_label}");
+        }
+        let list = if keyword == "import" { &mut imports } else { &mut exports };
+        if list.iter().any(|f| f.name == name) {
+            bail!("duplicate {fn_label}");
+        }
+        let params = parse_params(&cap[3], &fn_label)?;
+        let result = match cap.get(4) {
+            Some(m) => Some(WitType::parse(m.as_str(), &format!("{fn_label}, result"))?),
+            None => None,
+        };
+        list.push(WitFunc {
+            camel_name: kebab_to_camel(&name),
+            snake_name: kebab_to_snake(&name),
+            name,
+            params,
+            result,
+        });
+    }
+
+    Ok(ParsedWit { package_name, world_name, imports, exports })
 }
 
-/// Parse a WIT source string in the format emitted by wasmtk.
-pub fn parse_wit(src: &str) -> ParsedWit {
-    let pkg_re = regex_lite::Regex::new(r"package\s+([\w:/-]+)\s*;").unwrap();
-    let package_name = pkg_re
-        .captures(src)
-        .map(|c| c[1].to_string())
-        .unwrap_or_default();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let world_re = regex_lite::Regex::new(r"world\s+([\w-]+)\s*\{([\s\S]*)\}").unwrap();
-    let (world_name, world_body) = world_re
-        .captures(src)
-        .map(|c| (c[1].to_string(), c[2].to_string()))
-        .unwrap_or_default();
+    fn fault(src: &str) -> String {
+        format!("{:#}", parse_wit(src).expect_err("must not parse"))
+    }
 
-    ParsedWit {
-        package_name,
-        world_name,
-        imports: parse_funcs(&world_body, "import"),
-        exports: parse_funcs(&world_body, "export"),
+    #[test]
+    fn accepts_the_wasmtk_subset() {
+        let p = parse_wit(
+            "\u{feff}// header\npackage local:m;\nworld m-1 {\n  import env-f: func(p0: f64,) -> f64; // c\n  export is-ok: func() -> bool;\n  export run: func(s: string);\n}\n",
+        )
+        .unwrap();
+        assert_eq!(p.package_name, "local:m");
+        assert_eq!(p.world_name, "m-1");
+        assert_eq!(p.imports[0].camel_name, "envF");
+        assert_eq!(p.imports[0].params.len(), 1);
+        assert_eq!(p.exports[0].snake_name, "is_ok");
+        assert_eq!(p.exports[0].result, Some(WitType::Bool));
+        assert_eq!(p.exports[1].result, None);
+    }
+
+    #[test]
+    fn refuses_everything_else() {
+        assert!(fault("").contains("it is empty"));
+        assert!(fault("garbage").contains("not a WIT world"));
+        assert!(fault("world w { export f: func(a: u32); }").contains("unsupported WIT type \"u32\" in export f, parameter a"));
+        assert!(fault("world w { export f: func() -> s99; }").contains("unsupported WIT type \"s99\" in export f, result"));
+        assert!(fault("world w { export f: func(a: s32 b: s32); }").contains("malformed parameter \"a: s32 b: s32\""));
+        assert!(fault("world w { export f: func(s32); }").contains("malformed parameter"));
+        assert!(fault("world w { export f: func(a: s32, a: s32); }").contains("duplicate parameter \"a\""));
+        assert!(fault("world w { export f: func(); export f: func(); }").contains("duplicate export f"));
+        assert!(fault("world w { export f: func() }").contains("missing \";\""));
+        assert!(fault("world w { record r { a: s32 }; }").contains("not a WIT world"));
+        assert!(fault("world w { use x; }").contains("unsupported or malformed WIT statement: use x"));
+        assert!(fault("world w {} world v {}").contains("not a WIT world"));
+        assert!(fault("world w { export f_g: func(); }").contains("malformed function name"));
     }
 }

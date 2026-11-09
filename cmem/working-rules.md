@@ -29,7 +29,8 @@ H25, H28). Where this file and the floor disagree, the floor wins until the owne
 - **Invert every new test or gate** — break the thing on purpose, watch it fail for the RIGHT
   reason, restore from a copy — then TOUCH the restored files before the next cargo run (a copy
   keeps its old mtime and cargo keeps the mutant build; best-practices L2).
-- **Test counts (2026-10-26):** 1 fixture stamp + 26 spec + 1 SPEC-version + 7 doc-tests.
+- **Test counts (2026-11-08):** 2 parser unit + 1 fixture stamp + 28 refusals + 26 spec + 1
+  SPEC-version + 8 doc-tests = 66.
 
 ## Tooling (workspace Tooling rules 1–8, 🔒 owner)
 
