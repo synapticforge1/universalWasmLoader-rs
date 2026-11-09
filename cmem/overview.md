@@ -118,7 +118,7 @@ ABI kind is **auto-detected** from the module's exports: `cabi_realloc` present 
 - **Imports:** host callbacks registered into a `Linker<()>` under the `"env"` namespace before
   instantiation; memory resolved from `caller.get_export("memory")` at call time.
 
-### ✅ SPEC 4.0.0 — loud failures (2026-11-08, workspace letters H29 / C29; branch `spec-4.0.0`)
+### ✅ SPEC 4.0.0 — loud failures (2026-11-08, workspace letters H29 / C29; commit `3ade569`, released in 1.0.0)
 
 The SPEC is -js's 4.0.0 (released with -js 2.0.0 on 2026-11-07). What 0.2.0 did, MEASURED with
 the new `tests/refusals.rs` on v0.2.0's `src/` (scratch crate; the 4 options tests cannot compile
