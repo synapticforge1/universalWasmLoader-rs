@@ -1,4 +1,4 @@
-//! Universal WASM Loader — Rust port of the UniversalWasmLoader Spec v4.0.0.
+//! Universal WASM Loader — Rust port of the UniversalWasmLoader Spec v4.0.1.
 //!
 //! Load a `.wasm` file (or URL) with automatic WIT-based ABI translation:
 //!
@@ -44,7 +44,7 @@ pub use types::{IntoWasmVal, FromWasmVal, WasmArgs, FromWasmArgs, host_fn};
 pub use wit_parser::ParsedWit;
 
 /// The version of the cross-language UniversalWasmLoader `SPEC.md` this crate implements.
-pub const SPEC_VERSION: &str = "4.0.0";
+pub const SPEC_VERSION: &str = "4.0.1";
 
 // ── Internal ABI kind (not part of public API) ────────────────────────────────
 
@@ -167,7 +167,9 @@ impl fmt::Debug for CancelToken {
 /// Each http(s) fetch — the `.wit`, then the `.wasm` — must finish, from the request to the last
 /// byte of the body, within the time limit: [`DEFAULT_TIMEOUT`](LoadOptions::DEFAULT_TIMEOUT)
 /// (30 s) unless set. A zero limit is an error; [`no_timeout`](LoadOptions::no_timeout) removes
-/// it. Local files are read without a limit.
+/// it. Local files are read without a limit. (SPEC 4.0.1 lets a port whose options cannot tell
+/// zero from "unset" read zero as the default; Rust can, since "unset" is the default here, so
+/// this crate keeps refusing zero.)
 ///
 /// ```no_run
 /// use std::time::Duration;
