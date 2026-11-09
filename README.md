@@ -303,9 +303,9 @@ GitHub runners, each with only the permission it needs:
 
 | Job | Permission | Does |
 | --- | --- | --- |
-| `checks` | read | clones without credentials, builds, runs `cargo test` and `cargo semver-checks` — all third-party code runs here, with no secret |
+| `checks` | read | clones without credentials, builds, runs `cargo test`, `cargo semver-checks` and the release-page script's tests — all third-party code runs here, with no secret |
 | `publish` | read | refuses unless the tag is still the commit `checks` passed, then runs `cargo publish --no-verify` with the crates.io token in that one step; skips the upload if crates.io already has the version |
-| `release` | write | waits until crates.io serves the version (even if `publish` failed after uploading), then creates the GitHub Release |
+| `release` | write | waits until crates.io serves the version (even if `publish` failed after uploading), then, with no checkout, fetches `scripts/github-release.ts` at the tagged commit and creates the GitHub Release page through the REST API (the tag must still be that commit; an existing page is left alone) |
 
 > The publish workflow is written entirely with plain `run:` steps (checkout via
 > `git clone`, Rust pinned to an exact version through the runner's `rustup`), so it runs

@@ -37,8 +37,14 @@ H25, H28). Where this file and the floor disagree, the floor wins until the owne
 - **Invert every new test or gate** — break the thing on purpose, watch it fail for the RIGHT
   reason, restore from a copy — then TOUCH the restored files before the next cargo run (a copy
   keeps its old mtime and cargo keeps the mutant build; best-practices L2).
-- **Test counts (2026-11-08):** 2 parser unit + 1 fixture stamp + 28 refusals + 26 spec + 1
-  SPEC-version + 8 doc-tests = 66.
+- **Test counts (2026-11-09):** `cargo test`: 2 parser unit + 1 fixture stamp + 28 refusals + 26
+  spec + 1 SPEC-version + 8 doc-tests = 66. `bun test scripts/`: 12 (the release-page script).
+- **The release page (🔒 owner, 2026-11-09; workspace H32):** CI makes every NEW tag's GitHub
+  Release page, never a person or the CLI; old tags get no backfill. The order in
+  `scripts/github-release.ts` is fixed: (1) the tag peels to `github.sha`; (2) an existing page =
+  done, nothing written; (3) POST, read back (not a draft), peel again. Every request has a time
+  limit, and the `release` job checks out nothing beside its write token. A change to the script
+  ships with its test case and an inverting mutant.
 
 ## Tooling (workspace Tooling rules 1–10, 🔒 owner)
 
