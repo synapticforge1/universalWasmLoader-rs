@@ -2,7 +2,9 @@
 
 Only open items; each points at its record. Closed items leave (git keeps them).
 
-- ⬜ **The next tag measures H32's release job on GitHub** (2026-11-09): `checks` running
+- ⬜ **Release 1.0.4 measures H32's release job on GitHub** (owner, 2026-11-09: "commit, push
+  then release"; a patch: since `v1.0.3` only `.github/`, `scripts/`, README and `cmem/` changed,
+  and the crate's code equals 1.0.3's): `checks` running
   `bun test scripts/`, and `release` fetching the script alone at `github.sha` (no checkout), with
   the crates.io link, the draft check and the second peel ([overview.md](overview.md) § Release
   flow). Read back: every step green; the page's `author.login` = `github-actions[bot]`, the
