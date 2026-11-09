@@ -1,7 +1,7 @@
 # universal-wasm-loader
 
 A universal WebAssembly loader for Rust with automatic WIT-based ABI translation.
-Rust port of the [UniversalWasmLoader Spec v3.0.0](https://github.com/synapticforge1/universalWasmLoader-js/blob/main/SPEC.md).
+Rust port of the [UniversalWasmLoader Spec v4.0.0](https://github.com/synapticforge1/universalWasmLoader-js/blob/main/SPEC.md).
 
 Backed by [wasmtime](https://crates.io/crates/wasmtime). Works with any `.wasm` + `.wit` pair produced by [`wasmtk`](https://github.com/synapticforge1/wasmtk). ABI (wasic vs Canonical) is auto-detected — no profile configuration needed.
 
@@ -25,7 +25,9 @@ fn main() -> anyhow::Result<()> {
 }
 ```
 
-`wasm_load` auto-detects the companion `.wit` file by replacing `.wasm` → `.wit`. WIT export names are converted from kebab-case to snake_case for the Rust API (e.g. `is-positive` → `"is_positive"`). If no `.wit` file is found, raw WASM exports are returned with no ABI translation.
+`wasm_load` auto-detects the companion `.wit` file by replacing the `.wasm` suffix with `.wit` (a URL's query and fragment are dropped), and reads it **before** the `.wasm`. WIT export names are converted from kebab-case to snake_case for the Rust API (e.g. `is-positive` → `"is_positive"`).
+
+Raw WASM exports, with no ABI translation, are returned **only when the `.wit` is absent**: no such file, an HTTP 404 / 410, or a path that does not end in `.wasm`. Any other `.wit` failure is an error, raised before the `.wasm` is fetched: an unreadable file, another HTTP status, a network error, the time limit, or a `.wit` that does not parse. A module never silently loses its typed interface. See [Errors](#errors).
 
 ---
 
@@ -96,6 +98,10 @@ fn main() -> anyhow::Result<()> {
 }
 ```
 
+**Every WIT `import` needs a callback.** A load with a missing one fails before the `.wasm` is read, naming every missing callback (`no host callback for WIT imports: envMul (WIT "env-mul"), envAdd (WIT "env-add")`). Callbacks for names the `.wit` does not import are ignored.
+
+**A callback's return value must be the import's WIT result kind**, never converted: return an `f64` for `-> f64` (an `f32` or `i32` is refused) and a `bool` for `-> bool`. A mismatch is an error naming the callback, its import, the result type and the value, raised when WASM calls the import and returned by the export call that triggered it. A callback for an import with no result may return anything; the value is ignored. A callback's own `Err` reaches the caller unchanged. An import whose WIT result is `string` is not supported and fails the load.
+
 ---
 
 ## URL Loading (Async)
@@ -119,6 +125,32 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 ```
+
+Each file is fetched once, `.wit` first, and never retried.
+
+### Time Limit and Cancellation
+
+Each http(s) fetch must finish, from the request to the last byte of the body, within a time limit: **30 s by default**. Use `wasm_import_with_options` to change it, remove it, or cancel the load with a `CancelToken`:
+
+```rust
+use std::time::Duration;
+use universal_wasm_loader::{wasm_import_with_options, CancelToken, LoadOptions};
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let cancel = CancelToken::new();
+    let opts = LoadOptions::new()
+        .timeout(Duration::from_secs(5)) // or .no_timeout()
+        .cancel_token(cancel.clone());   // cancel.cancel() from anywhere stops the load
+
+    let m = wasm_import_with_options("https://example.com/math.wasm", None, opts).await?;
+    let r: i32 = m.call("add", (3i32, 4i32))?;
+    println!("{r}");
+    Ok(())
+}
+```
+
+When the limit passes, the load fails naming the URL and the limit. A zero limit is an error. A token that is already cancelled fails the load before any request is made. Local files are read without a limit. `wasm_load`, `create_singleton` and `InstancePool` read local files only, so they take no options.
 
 ### Version Pinning
 
@@ -194,6 +226,26 @@ async fn main() -> anyhow::Result<()> {
 
 The same types work in `Callbacks::on` closures — destructure the arg tuple and return any of the above directly.
 
+**Nothing is converted.** With a `.wit`, a call checks its argument count and each argument's kind against the WIT signature before calling WASM: `s32` takes an `i32` (an `i64`, even in range, is refused), `f64` takes an `f64` (an `f32` or an integer is refused), `bool` takes a `bool`, and `string` takes a `&str` / `String`. The return type `R` of `call::<_, R>` must be the export's result kind, or `()` to discard it. Raw exports (no `.wit`) are the engine's own functions; wasmtime checks their argument types.
+
+---
+
+## Errors
+
+Every failure is an `anyhow::Error`. Read the whole chain with `{:#}`: a host callback's error arrives wrapped in wasmtime's backtrace context.
+
+| Situation | When | The message names |
+| --- | --- | --- |
+| `.wit` unreadable (not "not found"), not UTF-8, or HTTP status other than 404 / 410 | load, before the `.wasm` | the `.wit` path or URL; the status |
+| `.wit` does not parse: a type outside `s32 s64 f32 f64 bool string` (e.g. `u32`), a parameter without `name: type`, a duplicate, text outside the one `world` | load, before the `.wasm` | the `.wit` and the fault |
+| a WIT `export` the module does not export | load | each missing export |
+| a WIT `import` with no callback; an import returning `string` | load, before the `.wasm` | each such import |
+| the `.wasm` answers an HTTP error | load | the status and the URL |
+| a fetch exceeds the time limit; the `CancelToken` is cancelled | load | the URL and the limit; "cancelled" |
+| wrong argument count or kind in a typed call | call | the export, the parameter and its WIT type |
+| a result read as the wrong kind | call | the export |
+| a callback returns the wrong kind | call | the callback, its import, the result type and the value |
+
 ---
 
 ## Running Tests
@@ -202,7 +254,7 @@ The same types work in `Callbacks::on` closures — destructure the arg tuple an
 cargo test
 ```
 
-The suite covers numeric, bool, string, host-import, singleton, pool, bind, and `wasm_interface!` patterns, plus the SPEC §10 `_initialize` and WASI-shim cases. The fixtures in `tests/` are the reference set from [`universalWasmLoader-js`](https://github.com/synapticforge1/universalWasmLoader-js), copied unmodified (SPEC §7); `tests/fixtures_stamp.rs` checks their bytes against `tests/fixtures.json`.
+The suite covers numeric, bool, string, host-import, singleton, pool, bind, and `wasm_interface!` patterns, plus the SPEC §10 `_initialize` and WASI-shim cases. `tests/refusals.rs` covers SPEC §8 "Refusals" row by row; its http rows run against a local server on 127.0.0.1 that counts requests per path. The fixtures in `tests/` are the reference set from [`universalWasmLoader-js`](https://github.com/synapticforge1/universalWasmLoader-js), copied unmodified (SPEC §7); `tests/fixtures_stamp.rs` checks their bytes against `tests/fixtures.json`.
 
 ---
 
@@ -213,7 +265,8 @@ major version and is listed here with its migration.
 
 | Version | Breaking change | Migration |
 | --- | --- | --- |
-| — | none so far (0.1.0 → 0.1.1 → 0.2.0 are compatible; 0.2.0 adds `SPEC_VERSION`) | — |
+| _next release_ | SPEC 4.0.0, loud failures. (1) Only an absent `.wit` (no file, HTTP 404 / 410, a path not ending in `.wasm`) gives raw exports; any other `.wit` failure is an error. (2) The `.wit` is parsed strictly: unknown types such as `u32` are no longer read as `s32`, and `wit_parser::parse_wit` now returns `Result<ParsedWit>`. (3) Every WIT import needs a callback; a missing one is no longer a silent `0`. (4) A callback's return kind is checked. (5) Typed-call arguments are checked: no extra arguments dropped, no `bool` default for a non-bool. (6) Each http(s) fetch has a 30 s limit. | Pass a callback for every WIT import. Use the exact Rust type for each WIT type (`i32` for `s32`, `f64` for `f64`), in calls and in callback results. Fix or remove a `.wit` that does not parse. For a slow server, use `wasm_import_with_options` with a longer `LoadOptions::timeout` or `no_timeout()`. |
+| 0.1.0 → 0.2.0 | none (0.1.1 and 0.2.0 are compatible; 0.2.0 adds `SPEC_VERSION`) | — |
 
 ---
 
