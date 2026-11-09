@@ -7,7 +7,7 @@ The **Rust port** of the Universal WASM Loader reference (JavaScript) implementa
 **Canonical ABI translation** automatically, so a Rust host can call WASM exports with native Rust
 types (numbers direct, strings/bools marshalled) without writing any `wasmtime` glue by hand.
 
-- **Crate:** `universal-wasm-loader` (`Cargo.toml`), version `1.0.3` (SPEC 4.0.0; on crates.io
+- **Crate:** `universal-wasm-loader` (`Cargo.toml`), version `1.0.3` (SPEC 4.0.0, 4.0.1 claimed from 1.0.4; on crates.io
   and as GitHub Release `v1.0.3`, 2026-11-09, both read back; 1.0.0 = the SPEC 4.0.0 release;
   history under Tests & build/release),
   license MIT.
@@ -101,8 +101,13 @@ re-stamps (workspace letter H7, drift L3/X8).
   per fetch covers request → last byte (`tokio::time::timeout` around send + `bytes()`); a
   `reqwest::Client` with no limits of its own. `wasm_load` / `create_singleton` / `InstancePool`
   are file-only, so they take no options (n/a, as -c / -dotnet / -go).
-- **`SPEC_VERSION: &str`** (added for 0.2.0, 2026-10-26) — the SPEC version implemented, `"4.0.0"`
-  since 2026-11-08 (was `"3.0.0"`).
+- **`SPEC_VERSION: &str`** (added for 0.2.0, 2026-10-26) — the SPEC version implemented, `"4.0.1"`
+  since 2026-11-09 (`"4.0.0"` from 2026-11-08, `"3.0.0"` before). 4.0.1 (-js `ac1de68`) is a
+  clarification with no behaviour change here: §11.1 lets a port whose options cannot tell zero
+  from "unset" (Go) read a zero limit as 30 s, and names Rust's `Option` among the ports that
+  keep refusing zero. This crate refuses zero (`a_zero_time_limit_is_an_error`), as before.
+  **Found by the gate:** `bump.ts patch` for 1.0.4 REFUSED with "SPEC_VERSION is 4.0.0 but the
+  reference SPEC.md (-js origin/main) is 4.0.1", before writing anything.
   The ONE source for the claim: `tests/spec_version.rs` fails if `README.md` or the crate doc
   (`src/lib.rs`) claims a different "Spec vX.Y.Z" (both said v2.0.0 until 2026-10-26 while the code
   was 3.0.0); `scripts/bump.ts` refuses a bump when it differs from the reference `SPEC.md`.
@@ -168,7 +173,8 @@ callee-allocated `[ptr, len]` pair, and the host reads that pair then calls a pa
 **The local reference clone `upstream/universalWasmLoader-js/`** (gitignored, not shipped) was a
 2.x snapshot with a hand-edited `SPEC.md` until 2026-10-26 (drift L5); it was fast-forwarded that
 day to -js `origin/main` `bcab4b4` (SPEC 3.0.0, 3.x `abi.js`, `wasi.js`), and on 2026-11-08 to
-`8d5af30` (SPEC 4.0.0, -js 2.0.0 = tag `v2.0.0` `1169ab9` + memory commits). Never hand-edit it —
+`8d5af30` (SPEC 4.0.0, -js 2.0.0 = tag `v2.0.0` `1169ab9` + memory commits), and on 2026-11-09
+to `3a36d1e` (SPEC 4.0.1). Never hand-edit it —
 `git -C upstream/universalWasmLoader-js pull --ff-only` refreshes it; the sibling checkout
 `../universalWasmLoader-js` is the same repository.
 
