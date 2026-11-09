@@ -294,6 +294,9 @@ After bumping, commit the change, then tag and push to trigger publishing:
 bun scripts/release.ts         # tags vX.Y.Z from Cargo.toml and pushes -> CI
 ```
 
+`release.ts` never moves a tag: it refuses when `vX.Y.Z` already exists locally or on `origin`
+(a published crate version can never be replaced), so a second release needs a new bump.
+
 `scripts/release.ts` never runs `cargo publish` locally. The tag push triggers
 [`.github/workflows/publish.yml`](.github/workflows/publish.yml), which runs three jobs on
 GitHub runners, each with only the permission it needs:
