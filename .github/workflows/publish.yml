@@ -169,9 +169,13 @@ jobs:
             exit 1
           fi
 
+      # GitHub's release-download service answered 504 to 1.0.2's run (42567711837) while serving
+      # the same file to other clients: retry transient failures. The sha256 check below still
+      # decides what runs, so a retry can never install a different file.
       - name: Install Bun (pinned by sha256)
         run: |
-          curl -fsSL -o bun.zip "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip"
+          curl -fsSL --retry 6 --retry-delay 10 --retry-all-errors --connect-timeout 30 --max-time 300 \
+            -o bun.zip "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip"
           echo "${BUN_SHA256}  bun.zip" | sha256sum -c -
           unzip -q bun.zip && mkdir -p "$HOME/.bun/bin" && mv bun-linux-x64/bun "$HOME/.bun/bin/" && rm -rf bun.zip bun-linux-x64
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"

@@ -303,8 +303,22 @@ the two **SPEC §10** tests below.
     **42552859531** green in all three jobs (`checks` 10.5 min — wasmtime and cargo-semver-checks
     compile from source; `publish` 15 s; `release` 4 s). Read back: crates.io `max_version`
     **1.0.1** (created 2026-11-09T02:58:14Z UTC), GitHub Release `v1.0.1`.
+  - **`1.0.2` (2026-11-09, owner: "bump and release")** — a patch carrying the H30 release step
+    (`a8459ee`; `scripts/` and `.github/` are excluded from the package, so the crate's code
+    equals 1.0.1's). `bump.ts patch`: floor patch, v1.0.1's tests 58/58. `bump version to v1.0.2`
+    `027df43` = tag `v1.0.2` = `origin/main`. Run **42567711837**: `checks` and `publish` green,
+    crates.io `max_version` **1.0.2** (read back). **`release` FAILED at "Install Bun"**: curl exit
+    22, because GitHub's release-download service answered **504 Gateway Time-out**. Measured from
+    here the same hour: the same URL gave 504, then 200 three times, while another asset of that
+    release still gave 504. A GitHub-side flake, not this repo's code. So the GitHub Release
+    `v1.0.2` was NOT created, and `scripts/github-release.ts` has still not run on GitHub.
+    Hardening in `publish.yml`: the download retries (`--retry 6 --retry-delay 10
+    --retry-all-errors`, 30 s connect, 300 s total); the sha256 check still decides what runs.
+    Measured locally: four 504s, then success, `bun.zip: OK`. A re-run of the failed job uses
+    the tagged commit's workflow (no retry), so it succeeds only while the download serves —
+    UNMEASURED until the owner re-runs it (open-work).
   - **On crates.io: `0.1.0` (2026-06-24), `0.1.1` (2026-10-22), `0.2.0` (2026-10-26T22:53Z),
-    `1.0.0` (2026-11-09T02:16Z), `1.0.1` (2026-11-09T02:58Z).**
+    `1.0.0` (2026-11-09T02:16Z), `1.0.1` (2026-11-09T02:58Z), `1.0.2` (2026-11-09).**
     0.2.0 = the minor that adds `SPEC_VERSION`; bumped through the full gate (floor patch,
     `v0.1.1` tests 26/26 on the new src, SPEC 3.0.0 = reference), bump commit `c8f2e11`, tag
     `v0.2.0`; run `40414680446` green on every step incl. the new compatibility gate; read back
