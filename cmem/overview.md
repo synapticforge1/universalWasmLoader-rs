@@ -241,13 +241,29 @@ the two **SPEC §10** tests below.
     (the Actions policy under the previous `jrmarcum` owner permitted only `jrmarcum`-owned
     actions; any third-party `uses:` step → `startup_failure`, nothing runs, nothing reaches
     crates.io). **Since the 2026-10-21 move the governing policy is the `synapticforge1` org's
-    — UNMEASURED; keep `run:`-only until it is checked.** Steps, all plain `run:`:
-    `git clone` checkout (token-auth, `--branch ${{ github.ref_name }}`) → rustup curl installer
-    (`~/.cargo/bin` appended to `$GITHUB_PATH`) → `cargo build --release --locked` →
-    `cargo test --locked` (gate) → `cargo install cargo-semver-checks --locked` +
-    `cargo semver-checks check-release` (compatibility gate) → `cargo publish --locked` with `CARGO_REGISTRY_TOKEN` env from
-    `${{ secrets.CARGO_REGISTRY_TOKEN }}` (workflow errors out if the secret is empty) → optional
-    `gh release create` (pre-installed `gh`, `run:`). Do NOT reintroduce `uses:`.
+    — UNMEASURED here; keep `run:`-only until it is checked** (loader-dotnet's run 42441589123
+    shows the org accepts hash-pinned `uses:`, but this repo needs none). Do NOT reintroduce `uses:`.
+    **Since 2026-11-08 (workspace C30, owner: "C30 is required in this project") three jobs**,
+    top-level `permissions: {}`:
+    - `checks` {contents: read} — clone WITHOUT credentials (was `x-access-token:` in the URL, so
+      the write token sat in `.git/config` beside third-party build scripts); HEAD must equal
+      `github.sha`; the tag must equal `v` + the Cargo.toml version; Rust **1.99.1** pinned through
+      the runner's rustup (verifies the signed manifest; was `curl | sh` of an unpinned installer
+      and "stable"); build → test → `cargo install cargo-semver-checks --version 0.51.0 --locked`
+      + `check-release`. All third-party code runs here.
+    - `publish` {contents: read} — `git ls-remote` the tag (peeled) = `github.sha` or refuse; a
+      fresh tokenless clone; probe `crates.io/api/v1/crates/universal-wasm-loader/<v>` (200 →
+      skip the upload, 404 → publish, anything else → fail); `cargo publish --locked --no-verify`
+      with `CARGO_REGISTRY_TOKEN` in that ONE step. `--no-verify` is the point: publish's verify
+      step rebuilt the crate, running dependencies' build scripts with the registry token in env.
+    - `release` {contents: write} — no checkout, no build; runs when `checks` passed and
+      `publish` was not cancelled, EVEN IF `publish` failed (workspace C34: a failure after the
+      upload must not strand the GitHub Release); waits up to 5 min for crates.io to answer 200
+      for the version, then `gh release create --verify-tag` (skipped when the release exists).
+    Checked locally 2026-11-08 (scratch scripts, deleted): Bun.YAML parses it to that graph, 0
+    `uses:`, the secret in one step; the tag step against GitHub: right commit 0, wrong commit 1,
+    absent tag 1; the probe: 0.2.0 → 200, 1.0.0 → 404; `cargo +1.99.1 test --locked` 66/66.
+    UNMEASURED on GitHub until 1.0.0's run.
   - **On crates.io: `0.1.0` (2026-06-24), `0.1.1` (2026-10-22), `0.2.0` (2026-10-26T22:53Z).**
     0.2.0 = the minor that adds `SPEC_VERSION`; bumped through the full gate (floor patch,
     `v0.1.1` tests 26/26 on the new src, SPEC 3.0.0 = reference), bump commit `c8f2e11`, tag

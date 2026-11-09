@@ -1,35 +1,66 @@
 name: Publish
 
+# Three jobs, each with only the permission it needs (workspace C30, owner 2026-11-08):
+#
+#   checks  - contents: read, NO secret, a clone without credentials. Everything that runs
+#             third-party code (dependencies' build.rs and proc macros, cargo-semver-checks)
+#             runs here, and nowhere else.
+#   publish - contents: read, a fresh runner, a clone without credentials. Refuses unless the tag
+#             is still the commit `checks` passed. `cargo publish --no-verify` (no build: `checks`
+#             verified this commit) with CARGO_REGISTRY_TOKEN in that one step only. Skips the
+#             upload when crates.io already has the version, so a re-run is safe.
+#   release - contents: write, no checkout, no build. Runs once crates.io answers 200 for the
+#             version, even when `publish` failed AFTER its upload (workspace C34: otherwise a
+#             published version would never get its GitHub Release), then runs only `gh`.
+#
+# Every step is `run:`; there is no `uses:` (the synapticforge1 org's policy for third-party
+# actions is unprobed here). Pinned: Rust through the runner's rustup, which verifies the signed
+# channel manifest (no `curl | sh`), and cargo-semver-checks by version, --locked.
+
 on:
   push:
     tags:
       - "v*"
 
+permissions: {}
+
+env:
+  RUST_TOOLCHAIN: "1.99.1"
+  SEMVER_CHECKS_VERSION: "0.51.0"
+  CRATE: universal-wasm-loader
+  # crates.io's API asks every client for an identifying User-Agent.
+  CRATES_UA: "universalWasmLoader-rs release workflow (https://github.com/synapticforge1/universalWasmLoader-rs)"
+
 jobs:
-  publish:
+  checks:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-
+      contents: read
     steps:
-      # NOTE: Written to run under an Actions policy that permits only
-      # owner-owned actions (the policy in force under the previous `jrmarcum`
-      # owner; the `synapticforge1` org's policy is unverified). Third-party actions (actions/checkout, dtolnay/rust-toolchain,
-      # actions-rs/*, …) cause a `startup_failure` — the workflow never runs a
-      # single step, so NOTHING reaches crates.io even though a local tag/release
-      # may still exist (looks published on GitHub, absent on crates.io). Every
-      # step here MUST therefore be a plain `run:` step: checkout via `git clone`,
-      # toolchain via the rustup curl installer. Do not reintroduce `uses:`.
-      - name: Checkout
+      - name: Checkout (no credentials)
         run: |
-          git clone --depth=1 --branch ${{ github.ref_name }} \
-            https://x-access-token:${{ github.token }}@github.com/${{ github.repository }} .
+          git clone --depth=1 --branch "$GITHUB_REF_NAME" "https://github.com/$GITHUB_REPOSITORY" .
+          head=$(git rev-parse HEAD)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "::error::the tag moved: it is $head, this run is for $GITHUB_SHA"
+            exit 1
+          fi
 
-      - name: Install Rust toolchain
+      - name: The tag matches Cargo.toml
         run: |
-          curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs \
-            | sh -s -- -y --default-toolchain stable --profile minimal
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          v=$(sed -n 's/^version[[:space:]]*=[[:space:]]*"\([0-9.]*\)".*/\1/p' Cargo.toml | head -n 1)
+          if [ "v$v" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Cargo.toml says $v, the tag is $GITHUB_REF_NAME"
+            exit 1
+          fi
+
+      - name: Install Rust (pinned)
+        run: |
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup default "$RUST_TOOLCHAIN"
+          cargo --version
 
       - name: Build (release)
         run: cargo build --release --locked
@@ -41,24 +72,95 @@ jobs:
       # must be a large enough bump over the latest crates.io release for the API diff.
       - name: Compatibility gate (cargo semver-checks)
         run: |
-          cargo install cargo-semver-checks --locked
+          cargo install cargo-semver-checks --version "$SEMVER_CHECKS_VERSION" --locked
           cargo semver-checks check-release
 
+  publish:
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: The tag is still the commit checks passed
+        run: |
+          tag="refs/tags/$GITHUB_REF_NAME"
+          refs=$(git ls-remote --tags "https://github.com/$GITHUB_REPOSITORY" "$tag" "$tag^{}")
+          at=$(printf '%s\n' "$refs" | awk -v t="$tag" '$2 == t "^{}" { p = $1 } $2 == t { l = $1 } END { print (p != "" ? p : l) }')
+          if [ "$at" != "$GITHUB_SHA" ]; then
+            echo "::error::$GITHUB_REF_NAME is now '$at', checks passed $GITHUB_SHA; refusing to publish"
+            exit 1
+          fi
+
+      - name: Checkout (no credentials)
+        run: |
+          git clone --depth=1 --branch "$GITHUB_REF_NAME" "https://github.com/$GITHUB_REPOSITORY" .
+          head=$(git rev-parse HEAD)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "::error::the tag moved: it is $head, this run is for $GITHUB_SHA"
+            exit 1
+          fi
+
+      - name: Install Rust (pinned)
+        run: |
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup default "$RUST_TOOLCHAIN"
+          cargo --version
+
+      - name: Is the version already on crates.io?
+        id: probe
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          code=$(curl -s -o /dev/null -w '%{http_code}' -A "$CRATES_UA" "https://crates.io/api/v1/crates/$CRATE/$v")
+          echo "crates.io answers $code for $CRATE $v"
+          case "$code" in
+            200) echo "skip=true" >> "$GITHUB_OUTPUT" ;;
+            404) echo "skip=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::crates.io answered $code; not publishing blind"; exit 1 ;;
+          esac
+
       - name: Publish to crates.io
+        if: steps.probe.outputs.skip != 'true'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
             echo "::error::CARGO_REGISTRY_TOKEN secret is not set. Add it under" \
-                 "repo Settings → Secrets and variables → Actions (from a crates.io API token)."
+                 "repo Settings > Secrets and variables > Actions (from a crates.io API token)."
             exit 1
           fi
-          cargo publish --locked
+          cargo publish --locked --no-verify
+
+  release:
+    needs: [checks, publish]
+    if: ${{ always() && needs.checks.result == 'success' && needs.publish.result != 'cancelled' && needs.publish.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Wait until crates.io serves the version
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -A "$CRATES_UA" "https://crates.io/api/v1/crates/$CRATE/$v")
+            if [ "$code" = "200" ]; then
+              echo "crates.io serves $CRATE $v"
+              exit 0
+            fi
+            echo "attempt $i: crates.io answers $code"
+            sleep 10
+          done
+          echo "::error::crates.io does not serve $CRATE $v; no GitHub Release"
+          exit 1
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create ${GITHUB_REF_NAME} \
-            --title "${GITHUB_REF_NAME}" \
-            --generate-notes
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "GitHub Release $GITHUB_REF_NAME already exists"
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+          fi
