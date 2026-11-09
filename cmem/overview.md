@@ -233,11 +233,17 @@ the two **SPEC §10** tests below.
     `wit_parser::parse_wit` changed its return type `ParsedWit` → `Result<ParsedWit>` — it has no
     lint for a changed return type, a second blind spot beside additions. (c) After writing `Cargo.toml` it runs
     `cargo update --workspace --offline` so `Cargo.lock` carries the new version (CI is `--locked`).
-  - **`bun scripts/release.ts`** — reads the `Cargo.toml` version, commits any pending bump of
-    `Cargo.toml`/`Cargo.lock`, then `git tag -f vX.Y.Z` + `git push` + `git push -f origin vX.Y.Z`.
-    Never runs `cargo publish` locally — the tag push triggers CI. 🟡 It force-moves the tag
-    (inherited from `release.sh`); a tag that already published must never move (★ 7.11) —
-    see [open-work.md](open-work.md).
+  - **`bun scripts/release.ts`** — reads the `Cargo.toml` version; **refuses, before committing
+    anything, when `vX.Y.Z` exists locally (`rev-parse --verify`) or on `origin`
+    (`ls-remote --exit-code`: 0 exists, 2 absent, anything else → refuse: origin could not be
+    asked)**; then commits any pending bump of `Cargo.toml`/`Cargo.lock`, `git tag vX.Y.Z` +
+    `git push` + `git push origin vX.Y.Z` — no `-f` anywhere (★ 7.11: a tag publishes, a published
+    version is immutable). Never runs `cargo publish` locally — the tag push triggers CI.
+    Fixed 2026-11-08 (it force-moved the tag, inherited from `release.sh`). Proof against a
+    throwaway bare remote: fresh tag → exit 0, remote tag = HEAD; re-run → refused (local);
+    local tag deleted + a new commit → refused (origin), remote tag unchanged, no local tag left;
+    unreachable origin → refused (ls-remote 128); the OLD script on that same state → exit 0 and
+    the remote tag MOVED to the new commit (the defect).
   - **`.github/workflows/publish.yml`** — triggered on `push: tags: ["v*"]`. **`run:`-only**
     (the Actions policy under the previous `jrmarcum` owner permitted only `jrmarcum`-owned
     actions; any third-party `uses:` step → `startup_failure`, nothing runs, nothing reaches
