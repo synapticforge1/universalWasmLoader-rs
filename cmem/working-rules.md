@@ -40,7 +40,7 @@ H25, H28). Where this file and the floor disagree, the floor wins until the owne
 - **Test counts (2026-11-08):** 2 parser unit + 1 fixture stamp + 28 refusals + 26 spec + 1
   SPEC-version + 8 doc-tests = 66.
 
-## Tooling (workspace Tooling rules 1–9, 🔒 owner)
+## Tooling (workspace Tooling rules 1–10, 🔒 owner)
 
 1. **Committed scripts are TypeScript run by Bun** (`bun scripts/<name>.ts`, `node:` builtins,
    never `Deno.*`). Rust has no scripting mechanism that does not build an executable
@@ -64,6 +64,13 @@ H25, H28). Where this file and the floor disagree, the floor wins until the owne
    `GITHUB_TOKEN` (`scripts/github-release.ts`), never the runner's preinstalled CLI. A task only
    the web UI can do is an OWNER item, never "blocked on the CLI". A workflow change is proven by
    its next real run, so land it before a release, never mid-release.
+10. **Every Bun version written here is the latest installed Bun** (🔒 owner, 2026-11-09;
+    workspace H31 and Tooling rule 10). After the owner installs a newer Bun, the next session
+    moves `publish.yml`'s `BUN_VERSION` and `BUN_SHA256` together. The sha256 comes from the
+    release's `SHASUMS256.txt`, checked against a second source. Run the gate first, and land the
+    move before a release, never during one. This repo declares no minimum Bun. Dated
+    measurements that name a Bun version stay as measured until the test is re-run.
+    2026-11-09: `bun --version` = 1.4.4 = the pin, so nothing moved.
 
 ## Privacy (🔒 owner, 2026-10-22 / -23 / -26)
 
