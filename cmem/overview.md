@@ -7,8 +7,8 @@ The **Rust port** of the Universal WASM Loader reference (JavaScript) implementa
 **Canonical ABI translation** automatically, so a Rust host can call WASM exports with native Rust
 types (numbers direct, strings/bools marshalled) without writing any `wasmtime` glue by hand.
 
-- **Crate:** `universal-wasm-loader` (`Cargo.toml`), version `1.0.3` (SPEC 4.0.0, 4.0.1 claimed from 1.0.4; on crates.io
-  and as GitHub Release `v1.0.3`, 2026-11-09, both read back; 1.0.0 = the SPEC 4.0.0 release;
+- **Crate:** `universal-wasm-loader` (`Cargo.toml`), version `1.0.4` (SPEC 4.0.1; on crates.io
+  and as GitHub Release `v1.0.4`, 2026-11-09, both read back; 1.0.0 = the SPEC 4.0.0 release;
   history under Tests & build/release),
   license MIT.
 - **Language / runtime:** Rust (edition 2021), backed by the **`wasmtime` crate, pinned at v28**.
@@ -307,7 +307,10 @@ the two **SPEC §10** tests below.
       tag → no request. Inverted by four one-line mutants, each red only in its own case: no sha
       check, no existing-page stop, no time limit, no second peel. Real GitHub, read-only, the
       script ALONE in an empty folder: `v1.0.3` at `45d9f59` → "already exists, nothing written";
-      at `027df43` → refused; `v9.9.9` → refused. UNMEASURED on GitHub until the next tag.
+      at `027df43` → refused; `v9.9.9` → refused. **MEASURED on GitHub by 1.0.4** (run
+      42680215036): "Test the release-page script" green in `checks`; `release` green with no
+      checkout ("Fetch the release-page script at the tagged commit", then "Create the GitHub
+      Release page (REST API)"); page by `github-actions[bot]` with the crates.io link on top.
     Checked locally 2026-11-08 (scratch scripts, deleted): Bun.YAML parses it to that graph, 0
     `uses:`, the secret in one step; the tag step against GitHub: right commit 0, wrong commit 1,
     absent tag 1; the probe: 0.2.0 → 200, 1.0.0 → 404; `cargo +1.99.1 test --locked` 66/66.
@@ -356,9 +359,19 @@ the two **SPEC §10** tests below.
     of the retrying download, and the first all-green run with the REST release script. Read
     back: crates.io `max_version` **1.0.3** (created 2026-11-09T15:23:58Z UTC); GitHub Release
     `v1.0.3` published 15:24:09Z by `github-actions[bot]`; tag `v1.0.3` = `45d9f59`.
+  - **`1.0.4` (2026-11-09, owner: "commit, push then release")** — a patch: H32's release job
+    (`7b3c851`) and `SPEC_VERSION` 4.0.1 (`d72f7b6`, a clarification; no behaviour change). The
+    first `bump.ts patch` REFUSED on the SPEC check (reference 4.0.1, ours 4.0.0); after the claim
+    moved, the floor was patch "set by: SPEC 4.0.0 -> 4.0.1" — the SPEC branch's first PATCH-level
+    firing — and v1.0.3's tests 58/58. `bump version to v1.0.4` `314a959` = tag `v1.0.4` =
+    `origin/main`. Run **42680215036** green in all three jobs and every step, in one attempt.
+    Read back: crates.io `max_version` **1.0.4** (created 2026-11-09T19:14:47Z UTC); GitHub
+    Release `v1.0.4` published 19:14:56Z by `github-actions[bot]`, not a draft, body
+    `crates.io: https://crates.io/crates/universal-wasm-loader/1.0.4` then "Full Changelog
+    v1.0.3...v1.0.4"; `releases/latest` = v1.0.4; tag `v1.0.4` = `314a959` (lightweight, unmoved).
   - **On crates.io: `0.1.0` (2026-06-24), `0.1.1` (2026-10-22), `0.2.0` (2026-10-26T22:53Z),
     `1.0.0` (2026-11-09T02:16Z), `1.0.1` (2026-11-09T02:58Z), `1.0.2` (2026-11-09),
-    `1.0.3` (2026-11-09T15:24Z).**
+    `1.0.3` (2026-11-09T15:24Z), `1.0.4` (2026-11-09T19:14Z).**
     0.2.0 = the minor that adds `SPEC_VERSION`; bumped through the full gate (floor patch,
     `v0.1.1` tests 26/26 on the new src, SPEC 3.0.0 = reference), bump commit `c8f2e11`, tag
     `v0.2.0`; run `40414680446` green on every step incl. the new compatibility gate; read back
