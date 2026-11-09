@@ -24,6 +24,14 @@ H25, H28). Where this file and the floor disagree, the floor wins until the owne
 - **The local gate is CI's gate** — read it from `.github/workflows/publish.yml`, run it on the
   committed tree after the last edit, read every exit code:
   `cargo build --release --locked` → `cargo test --locked` → `cargo semver-checks check-release`.
+- **CI pins its toolchain; the local one may differ** (2026-11-08): `publish.yml` installs Rust
+  `RUST_TOOLCHAIN` (1.99.1) and cargo-semver-checks 0.51.0, while this machine's default may be
+  a nightly. Before a release that changes Rust code, also run `cargo +<pinned> test --locked`
+  (`rustup toolchain install <pinned> --profile minimal` once). Raise the pin in its own commit,
+  with that run.
+- **A tag run takes about 11 minutes** (1.0.1, run 42552859531): `checks` ~10.5 min compiling
+  wasmtime and cargo-semver-checks from source, then `publish` ~15 s and `release` ~4 s. A long
+  `checks` is not a stall; read the job state from the public API before calling it stuck.
 - **Diff the output, not the exit code:** compare against the counts below. A drop in any count
   is a failure even at exit 0.
 - **Invert every new test or gate** — break the thing on purpose, watch it fail for the RIGHT
