@@ -294,14 +294,20 @@ After bumping, commit the change, then tag and push to trigger publishing:
 bun scripts/release.ts         # tags vX.Y.Z from Cargo.toml and pushes -> CI
 ```
 
-`scripts/release.ts` never runs `cargo publish` locally — the tag push triggers
-[`.github/workflows/publish.yml`](.github/workflows/publish.yml), which builds,
-runs `cargo test` as a gate, and runs `cargo publish` on a GitHub runner.
+`scripts/release.ts` never runs `cargo publish` locally. The tag push triggers
+[`.github/workflows/publish.yml`](.github/workflows/publish.yml), which runs three jobs on
+GitHub runners, each with only the permission it needs:
+
+| Job | Permission | Does |
+| --- | --- | --- |
+| `checks` | read | clones without credentials, builds, runs `cargo test` and `cargo semver-checks` — all third-party code runs here, with no secret |
+| `publish` | read | refuses unless the tag is still the commit `checks` passed, then runs `cargo publish --no-verify` with the crates.io token in that one step; skips the upload if crates.io already has the version |
+| `release` | write | waits until crates.io serves the version (even if `publish` failed after uploading), then creates the GitHub Release |
 
 > The publish workflow is written entirely with plain `run:` steps (checkout via
-> `git clone`, toolchain via the rustup curl installer), so it runs under a GitHub
-> Actions policy that permits only owner-owned actions. Under such a policy any
-> third-party `uses:` step causes a `startup_failure` (nothing runs, nothing reaches
+> `git clone`, Rust pinned to an exact version through the runner's `rustup`), so it runs
+> under a GitHub Actions policy that permits only owner-owned actions. Under such a policy
+> any third-party `uses:` step causes a `startup_failure` (nothing runs, nothing reaches
 > crates.io). Do not add `uses:`.
 
 ### Required one-time owner setup (before the first publish)
