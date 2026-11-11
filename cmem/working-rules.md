@@ -13,38 +13,46 @@ H25, H28). Where this file and the floor disagree, the floor wins until the owne
 - **Prefer a new commit to `--amend`.** Never `git checkout <file>` / `git stash` to drop work —
   copy it aside first.
 - **Docs and memory land in the same commit as the code they describe.**
-- **Nothing is pushed, tagged or published unless the owner says so.** A `v*` tag push publishes
-  to crates.io (`.github/workflows/publish.yml`); a published version is immutable.
-- **SemVer 2.0.0; a bump is gated, never judged** — `bun scripts/bump.ts` refuses a bump below
-  the `cargo semver-checks` floor; CI repeats it on the tag ([overview.md](overview.md) § Tests
-  & build/release).
+- **Nothing is pushed, tagged or published unless the owner says so.** ⚠️ Since 2026-11-10
+  **`Cargo.toml`'s version line ARMS a release**: a push of `main` whose version has no tag yet IS
+  a release (`.github/workflows/publish.yml`: checks → CI's tag → page → crates.io). So a version
+  line changes only through `bun scripts/bump.ts <level>`, and `main` is pushed with an untagged
+  version only by `bun scripts/release.ts`. Nobody pushes a tag; a published version is immutable.
+- **SemVer 2.0.0; a bump is gated, never judged** — `bun scripts/bump.ts` refuses a level below
+  the floor; CI's `checks` runs the same release-mode gate (`scripts/compat.ts --release`) on the
+  pushed commit before it tags ([release.md](release.md) § How a release runs).
 
 ## The gate
 
 - **The local gate is CI's gate** — read it from `.github/workflows/publish.yml`, run it on the
   committed tree after the last edit, read every exit code:
-  `cargo build --release --locked` → `cargo test --locked` → `cargo semver-checks check-release`.
+  `cargo build --release --locked` → `cargo test --locked` → `bun test scripts/`; before a release
+  `bun scripts/release.ts --dry-run` runs all of it plus `bun scripts/compat.ts --release`.
 - **CI pins its toolchain; the local one may differ** (2026-11-08): `publish.yml` installs Rust
   `RUST_TOOLCHAIN` (1.99.1) and cargo-semver-checks 0.51.0, while this machine's default may be
   a nightly. Before a release that changes Rust code, also run `cargo +<pinned> test --locked`
   (`rustup toolchain install <pinned> --profile minimal` once). Raise the pin in its own commit,
   with that run.
-- **A tag run takes about 11 minutes** (1.0.1, run 42552859531): `checks` ~10.5 min compiling
-  wasmtime and cargo-semver-checks from source, then `publish` ~15 s and `release` ~4 s. A long
-  `checks` is not a stall; read the job state from the public API before calling it stuck.
+- **A release run takes about 11 minutes** (1.0.1, run 42552859531, the old tag-triggered shape):
+  `checks` ~10.5 min compiling wasmtime and cargo-semver-checks from source; the other jobs take
+  seconds. A long `checks` is not a stall; read the job state from the public API before calling
+  it stuck. Since 2026-11-10 every push of `main` runs `checks` (cargo-semver-checks only for a
+  release).
 - **Diff the output, not the exit code:** compare against the counts below. A drop in any count
   is a failure even at exit 0.
 - **Invert every new test or gate** — break the thing on purpose, watch it fail for the RIGHT
   reason, restore from a copy — then TOUCH the restored files before the next cargo run (a copy
   keeps its old mtime and cargo keeps the mutant build; best-practices L2).
-- **Test counts (2026-11-09):** `cargo test`: 2 parser unit + 1 fixture stamp + 28 refusals + 26
-  spec + 1 SPEC-version + 8 doc-tests = 66. `bun test scripts/`: 12 (the release-page script).
+- **Test counts (2026-11-10):** `cargo test`: 2 parser unit + 1 fixture stamp + 28 refusals + 26
+  spec + 1 SPEC-version + 8 doc-tests = 66. `bun test scripts/`: 35 (github-release 21: state /
+  tag / page; crates-io 14).
 - **The release page (🔒 owner, 2026-11-09; workspace H32):** CI makes every NEW tag's GitHub
   Release page, never a person or the CLI. **No backfill** (owner, 2026-11-09: "we will not
   provide the release pages for previous releases, just for the ones from this point on"):
-  `publish.yml` runs on `v*` tag pushes only, with no `workflow_dispatch`, and none is to be
-  added. Measured that day: all 7 tags (v0.1.1 … v1.0.4) already had a page, each made by
-  `github-actions[bot]` at its own release, so nothing was missing. The order in
+  `publish.yml` has no `workflow_dispatch`, and none is to be added; since 2026-11-10 it runs on
+  pushes of `main` and makes a page only for the version it has just tagged. Measured 2026-11-09:
+  all 7 tags (v0.1.1 … v1.0.4) already had a page, each made by `github-actions[bot]` at its own
+  release, so nothing was missing. The order in
   `scripts/github-release.ts` is fixed: (1) the tag peels to `github.sha`; (2) an existing page =
   done, nothing written; (3) POST, read back (not a draft), peel again. Every request has a time
   limit, and the `release` job checks out nothing beside its write token. A change to the script
@@ -85,8 +93,10 @@ H25, H28). Where this file and the floor disagree, the floor wins until the owne
 ## Privacy (🔒 owner, 2026-10-22 / -23 / -26)
 
 - **Nothing secret or personal in any committed file, commit message, package, issue or PR.**
-  Secrets: tokens (crates.io, GitHub), keys, passwords, `.env`. The crates.io token lives only in
-  the GitHub secret `CARGO_REGISTRY_TOKEN`.
+  Secrets: tokens (crates.io, GitHub), keys, passwords, `.env`. Since 2026-11-10 (owner's D2) no
+  crates.io token is stored: CI mints a short-lived one through trusted publishing and revokes it
+  after the upload. The old GitHub secret `CARGO_REGISTRY_TOKEN` is to be deleted by the owner
+  once the first trusted-publishing release has published ([release.md](release.md)).
 - **The path test is "is it machine-specific?", not "is it absolute?"** Not public: any path that
   records the owner's machine layout — a user profile (`C:\Users\<name>\…`), the project tree
   (`D:\Programs\…`), other drives, scoop / AppData installs, a scratchpad or session id. Fine:
@@ -115,3 +125,22 @@ H25, H28). Where this file and the floor disagree, the floor wins until the owne
   `git pull --ff-only`, never edit it.
 - **At session start** read `../../cmem/workspace-correspondence.md`, then `../../cmem/handoffs.md`,
   for items addressed to this repo.
+
+## Owner commands: "commit", "push", "release" (owner, 2026-11-10)
+
+🔒 Written into every project by the workspace session on the owner's direction (2026-11-10:
+"please write that into each project"; workspace `cmem/working-rules.md` Tooling rule 12, letter
+H34). When the owner says:
+
+- **"commit"** — first run "update the project memory files" (re-derive this repo's `cmem/` from
+  its current state), then commit to the branch being worked on. Nothing is pushed.
+- **"push"** — perform "commit", then merge the branch into `main`, then push `main` (and the
+  working branch) to GitHub (`origin`) and read it back with `git ls-remote`.
+- **"release"** — perform "push", then the release process: the workspace's
+  `cmem/release-process.md` §§ 5–8 — CI checks first, then CI pushes the tag, then the GitHub
+  Release page from the tag, then the publish to the registry — recorded in `cmem/release.md`
+  § "Release History" (newest first, a summary of what changed). The level (patch / minor /
+  major) is the owner's: ask if it was not given.
+
+Each command includes the one before it, and none goes further than its own word (a "commit"
+never pushes, a "push" never releases). This repo's own gate and merge rules apply at each step.

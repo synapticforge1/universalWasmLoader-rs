@@ -272,55 +272,52 @@ major version and is listed here with its migration.
 
 ## Releasing (crates.io)
 
-The crate version lives in **`Cargo.toml`** (`[package].version`) — the single source of truth.
+The crate version lives in **`Cargo.toml`** (`[package].version`), the single source of truth.
+Nobody pushes a tag and nothing is published from a workstation: the release order is **CI checks
+first, then CI creates the tag, then the GitHub Release page from the tag, then the publish to
+crates.io**, all in one workflow run.
 
 The release scripts are TypeScript run by [Bun](https://bun.sh):
 
 ```sh
-bun scripts/bump.ts            # patch:  0.1.0 -> 0.1.1   (default)
-bun scripts/bump.ts minor      # minor:  0.1.0 -> 0.2.0
-bun scripts/bump.ts major      # major:  0.1.0 -> 1.0.0
-bun scripts/bump.ts --dry-run  # print the next version without writing
+bun scripts/bump.ts patch|minor|major    # the level is required; commits "bump to vX.Y.Z"
+bun scripts/bump.ts minor --dry-run      # every check, nothing written or committed
+bun scripts/release.ts                   # guards + the full gate, then pushes main (no tag)
+bun scripts/release.ts --dry-run         # every guard and the gate, nothing pushed
 ```
 
-The bump is gated: it refuses a version below what `cargo semver-checks` requires (install with
-`cargo install cargo-semver-checks --locked`), and a patch or minor while the previous release's
-tests fail against the new source. It needs the reference clone at `upstream/universalWasmLoader-js`
-to check `SPEC_VERSION`.
+`bump.ts` refuses a dirty tree and a level below what the changes require: the
+`cargo semver-checks` floor (install with `cargo install cargo-semver-checks --locked`), a
+`SPEC_VERSION` change, and the previous release's tests run against the new source (red refuses a
+patch or minor). `release.ts` then checks that `main` is exactly `origin/main` plus that bump
+commit, that the tag exists neither locally nor on GitHub and that crates.io does not list the
+version, runs the full gate (`scripts/compat.ts --release` included), and pushes `main`.
 
-After bumping, commit the change, then tag and push to trigger publishing:
-
-```sh
-bun scripts/release.ts         # tags vX.Y.Z from Cargo.toml and pushes -> CI
-```
-
-`release.ts` never moves a tag: it refuses when `vX.Y.Z` already exists locally or on `origin`
-(a published crate version can never be replaced), so a second release needs a new bump.
-
-`scripts/release.ts` never runs `cargo publish` locally. The tag push triggers
-[`.github/workflows/publish.yml`](.github/workflows/publish.yml), which runs three jobs on
-GitHub runners, each with only the permission it needs:
+That push runs [`.github/workflows/publish.yml`](.github/workflows/publish.yml). Every push of
+`main` runs it; it is a release when `Cargo.toml`'s version has no tag yet. Each job holds only
+the permission it needs:
 
 | Job | Permission | Does |
 | --- | --- | --- |
-| `checks` | read | clones without credentials, builds, runs `cargo test`, `cargo semver-checks` and the release-page script's tests — all third-party code runs here, with no secret |
-| `publish` | read | refuses unless the tag is still the commit `checks` passed, then runs `cargo publish --no-verify` with the crates.io token in that one step; skips the upload if crates.io already has the version |
-| `release` | write | waits until crates.io serves the version (even if `publish` failed after uploading), then, with no checkout, fetches `scripts/github-release.ts` at the tagged commit and creates the GitHub Release page through the REST API (the tag must still be that commit; an existing page is left alone) |
+| `checks` | read | clones without credentials; builds, runs `cargo test` and the release scripts' tests; for a release, the release-mode gate (API floor over the previous tag, SPEC check, the previous tag's tests, `cargo package`) — all third-party code runs here, with no secret |
+| `tag` | write | creates the annotated tag `vX.Y.Z` on the checked commit through GitHub's REST API (an existing tag on that commit is left alone; one elsewhere is refused) |
+| `release` | write | creates the GitHub Release page from that tag (an existing page is left alone), with the crates.io link on top |
+| `publish` | OIDC only | crates.io **trusted publishing**: exchanges the job's GitHub OIDC token for a short-lived crates.io token, runs `cargo publish --no-verify`, revokes the token, then fails unless crates.io serves the version; skips the upload if crates.io already has it |
 
-> The publish workflow is written entirely with plain `run:` steps (checkout via
-> `git clone`, Rust pinned to an exact version through the runner's `rustup`), so it runs
-> under a GitHub Actions policy that permits only owner-owned actions. Under such a policy
-> any third-party `uses:` step causes a `startup_failure` (nothing runs, nothing reaches
-> crates.io). Do not add `uses:`.
+A failed job is fixed with **Re-run failed jobs**: each job skips what is already done. A tag is
+never created twice or moved: a published crate version can never be replaced.
 
-### Required one-time owner setup (before the first publish)
+> The workflow is written entirely with plain `run:` steps (no `uses:`), with Rust pinned to
+> an exact version through the runner's `rustup` and Bun pinned by version and sha256, so it runs
+> under an Actions policy that permits only owner-owned actions.
 
-1. **`CARGO_REGISTRY_TOKEN` repo secret** — create a crates.io API token at
-   <https://crates.io/settings/tokens> (scope: publish-new + publish-update), then add it
-   under repo **Settings → Secrets and variables → Actions → New repository secret**, named
-   exactly `CARGO_REGISTRY_TOKEN`.
-2. **Crate name** — `universal-wasm-loader` must be available (first publish) or already
-   owned by your crates.io account. Verify at <https://crates.io/crates/universal-wasm-loader>.
+### Required one-time owner setup
+
+1. **Trusted publishing on crates.io**: `universal-wasm-loader` → Settings → Trusted Publishing
+   → add a GitHub publisher: repository `synapticforge1/universalWasmLoader-rs`, workflow
+   `publish.yml`. No API token is stored in GitHub.
+2. **Crate name**: `universal-wasm-loader` must be owned by your crates.io account
+   (<https://crates.io/crates/universal-wasm-loader>).
 
 ---
 

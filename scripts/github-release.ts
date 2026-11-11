@@ -1,32 +1,46 @@
 /**
- * Create the GitHub Release page for a tag through GitHub's REST API — not the GitHub CLI
- * (workspace letters H30, H32). Run by `.github/workflows/publish.yml`'s `release` job, which
- * fetches this one file at `github.sha` and checks out nothing else (C30):
+ * The GitHub half of a release, through GitHub's REST API — not the GitHub CLI (workspace letters
+ * H30, H32, H33). `.github/workflows/publish.yml` fetches this one file at `github.sha` and runs:
  *
- *   bun github-release.ts            # create the page (or find it already there)
- *   bun github-release.ts --dry-run  # every check, no write
+ *   bun github-release.ts state  # checks: is this push a release?  new | rerun | none
+ *   bun github-release.ts tag    # tag job (U6): CI's annotated tag vX.Y.Z on GITHUB_SHA
+ *   bun github-release.ts page   # release job (U7): the Release page FROM that tag
+ *   … --dry-run                  # every check, nothing written
  *
- * Environment (GitHub Actions sets all but the token, which the job passes in):
- *   GITHUB_REPOSITORY  owner/repo          GITHUB_REF_NAME  the tag, e.g. v1.0.4
- *   GITHUB_SHA         the commit the run is for
- *   GITHUB_TOKEN       contents: write (only needed for the POST; reads work without it)
+ * The owner's order (2026-11-10): checks, then the tag, then the page from the tag, then the
+ * publish. A tag pushed with the job's GITHUB_TOKEN starts no workflow run, so all four jobs run in
+ * the one run started by the push of `main` (`needs:`).
+ *
+ * Environment (GitHub Actions sets all but the token and VERSION, which the job passes in):
+ *   GITHUB_REPOSITORY  owner/repo     GITHUB_SHA  the commit the run is for
+ *   VERSION            X.Y.Z, Cargo.toml's version (the tag is vX.Y.Z)
+ *   GITHUB_TOKEN       contents: write for `tag` / `page`; reads need none
  *   GITHUB_API_URL     default https://api.github.com
- *   CRATE              the crates.io name, for the link on top of the notes
+ *   CRATE              the crates.io name, for the link on top of the page's notes
  *   RELEASE_TIMEOUT_MS the limit for EACH request, request to last byte; default 30000
+ *   GITHUB_OUTPUT      when set, `state` also writes `state=<answer>` there
  *
- * H32's order, each step refusing with exit 1 on anything unexpected:
- *   1. The tag exists on GitHub and peels (annotated tags followed) to GITHUB_SHA. `POST
- *      /releases` CREATES a missing tag from the default branch, so this comes first.
- *   2. A page for the tag already exists → done, exit 0, nothing written (re-runs are safe).
- *   3. POST `generate_release_notes` with the crates.io link on top; read the page back (the tag,
- *      not a draft); peel the tag again (the POST must not have created or moved it).
+ * state: the tag is absent → new (a release); it peels to GITHUB_SHA → rerun (finish what a failed
+ *        run left); it peels elsewhere → none (an ordinary push of an already-released version).
+ * tag:   absent → POST git/tags (annotated, message "vX.Y.Z") + POST git/refs, then read back: it
+ *        must peel to GITHUB_SHA. Already peeling to GITHUB_SHA → done, nothing written. Elsewhere
+ *        → refused: a published tag never moves.
+ * page:  H32's order: (1) the tag peels to GITHUB_SHA (`POST /releases` would CREATE a missing
+ *        tag from the default branch); (2) an existing page = done, nothing written; (3) POST
+ *        `generate_release_notes` with the crates.io link on top, read back (the tag, not a
+ *        draft), peel again.
  *
  * `node:` builtins and `fetch` only.
  */
 import process from "node:process";
 
-const dryRun = process.argv.slice(2).includes("--dry-run");
-for (const arg of process.argv.slice(2)) {
+const argv = process.argv.slice(2);
+const command = argv[0];
+const dryRun = argv.slice(1).includes("--dry-run");
+if (!["state", "tag", "page"].includes(command ?? "")) {
+  fail(`the first argument must be state | tag | page (got "${command ?? ""}")`);
+}
+for (const arg of argv.slice(1)) {
   if (arg !== "--dry-run") fail(`unknown argument "${arg}" — use --dry-run or nothing`);
 }
 
@@ -42,17 +56,16 @@ function need(name: string): string {
 }
 
 const repo = need("GITHUB_REPOSITORY");
-const tag = need("GITHUB_REF_NAME");
 const sha = need("GITHUB_SHA");
-const crate = need("CRATE");
+const version = need("VERSION");
+const tag = `v${version}`;
 const token = process.env.GITHUB_TOKEN ?? "";
 const api = (process.env.GITHUB_API_URL || "https://api.github.com").replace(/\/+$/, "");
 const timeoutMs = Number(process.env.RELEASE_TIMEOUT_MS ?? "30000");
 
 if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) fail(`GITHUB_REPOSITORY "${repo}" is not owner/repo`);
-if (!/^v\d+\.\d+\.\d+$/.test(tag)) fail(`GITHUB_REF_NAME "${tag}" is not a vX.Y.Z tag`);
+if (!/^\d+\.\d+\.\d+$/.test(version)) fail(`VERSION "${version}" is not X.Y.Z`);
 if (!/^[0-9a-f]{40}$/.test(sha)) fail(`GITHUB_SHA "${sha}" is not a full commit id`);
-if (!/^[a-z0-9_-]+$/.test(crate)) fail(`CRATE "${crate}" is not a crate name`);
 if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) fail(`RELEASE_TIMEOUT_MS must be a positive number`);
 
 function headers(): Record<string, string> {
@@ -108,6 +121,46 @@ async function peel(): Promise<string | null> {
   return object.sha;
 }
 
+if (command === "state") {
+  const at = await peel();
+  const state = at === null ? "new" : at === sha ? "rerun" : "none";
+  console.log(`state=${state}  (tag ${tag} ${at === null ? "absent" : `on ${at}`}; this run is for ${sha})`);
+  const out = process.env.GITHUB_OUTPUT;
+  if (out) {
+    const { appendFileSync } = await import("node:fs");
+    appendFileSync(out, `state=${state}\n`);
+  }
+  process.exit(0);
+}
+
+if (command === "tag") {
+  const at = await peel();
+  if (at === sha) {
+    console.log(`tag ${tag} already on ${sha}, nothing written`);
+    process.exit(0);
+  }
+  if (at !== null) fail(`tag ${tag} is on ${at}, not ${sha}; refusing (a published tag never moves)`);
+  if (dryRun) {
+    console.log(`dry-run: would create the annotated tag ${tag} on ${sha}`);
+    process.exit(0);
+  }
+  if (!token) fail("GITHUB_TOKEN is not set; cannot create the tag");
+  const obj = await call("POST", `/repos/${repo}/git/tags`, { tag, message: tag, object: sha, type: "commit" });
+  if (obj.status !== 201 || !/^[0-9a-f]{40}$/.test(obj.json?.sha ?? "")) {
+    fail(`POST tag object ${tag}: HTTP ${obj.status} ${JSON.stringify(obj.json)}`);
+  }
+  const ref = await call("POST", `/repos/${repo}/git/refs`, { ref: `refs/tags/${tag}`, sha: obj.json.sha });
+  if (ref.status !== 201) fail(`POST ref refs/tags/${tag}: HTTP ${ref.status} ${JSON.stringify(ref.json)}`);
+  const back = await peel();
+  if (back !== sha) fail(`after creating it, tag ${tag} peels to ${back ?? "nothing"}, not ${sha}`);
+  console.log(`tag ${tag} created (annotated, object ${obj.json.sha}) on ${sha}, read back`);
+  process.exit(0);
+}
+
+// page — H32's order
+const crate = need("CRATE");
+if (!/^[a-z0-9_-]+$/.test(crate)) fail(`CRATE "${crate}" is not a crate name`);
+
 // 1. The tag exists and peels to the commit this run is for.
 const before = await peel();
 if (before === null) fail(`tag ${tag} does not exist on GitHub; refusing (a release would create it)`);
@@ -123,7 +176,6 @@ if (existing.status === 200) {
 if (existing.status !== 404) fail(`GET release ${tag}: HTTP ${existing.status} ${JSON.stringify(existing.json)}`);
 
 // 3. Create it, read it back, peel the tag again.
-const version = tag.slice(1);
 const body = {
   tag_name: tag,
   name: tag,
