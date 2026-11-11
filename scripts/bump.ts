@@ -133,7 +133,13 @@ if (run("cargo", ["update", "--workspace", "--offline"]).status !== 0) {
 }
 
 // ── the bump commit, made here (U2): exactly Cargo.toml + Cargo.lock ──
-const changed = run("git", ["status", "--porcelain", "--untracked-files=all"]).stdout.trim().split(/\r?\n/).map((l) => l.slice(3)).sort();
+// Names straight from git — never sliced out of `status --porcelain` lines (a trimmed first line
+// loses its leading space, and "argo.lock" was the result; found by the 2026-11-10 rehearsal).
+const names = (out: string) => out.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+const changed = [
+  ...names(run("git", ["diff", "--name-only"]).stdout),
+  ...names(run("git", ["ls-files", "--others", "--exclude-standard"]).stdout),
+].sort();
 if (changed.join(",") !== "Cargo.lock,Cargo.toml") fail(`expected only Cargo.toml and Cargo.lock to change, found: ${changed.join(", ")}`);
 if (run("git", ["add", "Cargo.toml", "Cargo.lock"]).status !== 0) fail("git add failed");
 const message = `bump to v${next}`;
