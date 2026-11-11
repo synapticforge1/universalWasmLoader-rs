@@ -10,7 +10,9 @@ Only open items; each points at its record. Closed items leave (git keeps them).
   configs only to an authenticated owner), so the first release's `publish` job is its measurement.
   If that exchange is refused, the fix is the setting, then "Re-run failed jobs".
   [release.md](release.md) § How a release runs.
-- ⬜ **The first release in the owner's order measures U5–U8 on GitHub** (2026-11-10): `checks`
+- ⬜ **Release 1.0.5 (owner, 2026-11-10: "release", level patch) measures U5–U8 on GitHub**:
+  the first release in the owner's order. Since `v1.0.4` the crate's Rust code is unchanged
+  (scripts, workflow, README, `cmem/`). It checks `checks`
   on a push of `main` (the non-release path is measured at the next push), CI's REST tag, the page
   before the publish, crates.io's acceptance of an OIDC token from a run started by a push of
   `main`, the revoke, the fatal read-back. Read back as in [release.md](release.md) and write the
