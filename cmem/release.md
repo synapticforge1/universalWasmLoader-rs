@@ -52,9 +52,10 @@ this process. The level (patch / minor / major) is the owner's; ask if it was no
    (`tag` = done, page = done, crates.io lists it = no upload). Never a new tag for the same code,
    never a moved tag.
 
-**Owner items for trusted publishing (D2), before the first release in this order:** on
-crates.io, `universal-wasm-loader` → Settings → Trusted Publishing → add GitHub: repository
-`synapticforge1/universalWasmLoader-rs`, workflow `publish.yml` (no environment). After the first
+**Owner items for trusted publishing (D2):** on crates.io, `universal-wasm-loader` → Settings →
+Trusted Publishing → add GitHub: repository `synapticforge1/universalWasmLoader-rs`, workflow
+`publish.yml` (no environment) — **done by the owner 2026-11-10** (reported; not readable from
+here, so the first release measures it). After the first
 release publishes through it, delete the GitHub secret `CARGO_REGISTRY_TOKEN` and revoke that
 crates.io API token — nothing references it any more. ⚠️ UNMEASURED until that release: the
 exchange on GitHub, and whether crates.io accepts a run started by a push of `main` (the action's
