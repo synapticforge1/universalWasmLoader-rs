@@ -7,8 +7,9 @@ The **Rust port** of the Universal WASM Loader reference (JavaScript) implementa
 **Canonical ABI translation** automatically, so a Rust host can call WASM exports with native Rust
 types (numbers direct, strings/bools marshalled) without writing any `wasmtime` glue by hand.
 
-- **Crate:** `universal-wasm-loader` (`Cargo.toml`), version `1.0.4` (SPEC 4.0.1; on crates.io
-  and as GitHub Release `v1.0.4`, 2026-11-09, both read back; 1.0.0 = the SPEC 4.0.0 release;
+- **Crate:** `universal-wasm-loader` (`Cargo.toml`), version `1.0.5` (SPEC 4.0.1; on crates.io
+  through trusted publishing and as GitHub Release `v1.0.5`, 2026-11-11, both read back — the
+  first release in the owner's order; 1.0.0 = the SPEC 4.0.0 release;
   history under Tests & build/release),
   license MIT.
 - **Language / runtime:** Rust (edition 2021), backed by the **`wasmtime` crate, pinned at v28**.
@@ -207,7 +208,7 @@ the two **SPEC §10** tests below.
 - **Releases: see [release.md](release.md)** (🔒 the ONE record, owner 2026-11-10, workspace H33
   D3): how a release runs — `bun scripts/bump.ts <level>` (commits `bump to vX.Y.Z`), then
   `bun scripts/release.ts` (pushes `main` only), then CI: checks → tag → Release page → crates.io
-  trusted publishing — and § "Release History", newest first (1.0.4 … 0.1.0). The detailed records
+  trusted publishing — and § "Release History", newest first (1.0.5 … 0.1.0). The detailed records
   that stood here until 2026-11-10 (the bump / release scripts' measurements, the C30 / H30 / H32
   workflow steps, each release's read-backs) are summarised there; their full text is in git
   (`git show 3fa32fa:cmem/overview.md`).

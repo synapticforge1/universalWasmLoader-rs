@@ -37,7 +37,7 @@ comprehensive audit across tested AND untested paths for: (1) workarounds / temp
 
 | File | What it holds |
 | --- | --- |
-| [overview.md](overview.md) | What this loader port is (1.0.4 on crates.io, SPEC 4.0.1), repo location (`synapticforge1` since 2026-10-21), API surface (incl. `LoadOptions` / `CancelToken`), SPEC 4.0.0 loud failures + the 3.0.0 ABI, fixtures, tests; a pointer to [release.md](release.md) for the release process and history |
+| [overview.md](overview.md) | What this loader port is (1.0.5 on crates.io, SPEC 4.0.1), repo location (`synapticforge1` since 2026-10-21), API surface (incl. `LoadOptions` / `CancelToken`), SPEC 4.0.0 loud failures + the 3.0.0 ABI, fixtures, tests; a pointer to [release.md](release.md) for the release process and history |
 | [release.md](release.md) | 🔒 The ONE release record (H33 D3): how a release runs here (bump → release.ts pushes `main` → CI checks → tag → page → crates.io trusted publishing; U1–U12; owner items) and § "Release History", newest first |
 | [working-rules.md](working-rules.md) | The checklist: git + branching, the gate (= CI's), tooling hard rules (Bun scripts, no heredocs, LF), privacy (path test, maintainer address), boundaries |
 | [best-practices.md](best-practices.md) | METHOD: § L this repo's rules + the workspace's 28 ★ rules, a stamped verbatim copy (2026-10-26) |

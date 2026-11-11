@@ -54,13 +54,11 @@ this process. The level (patch / minor / major) is the owner's; ask if it was no
 
 **Owner items for trusted publishing (D2):** on crates.io, `universal-wasm-loader` → Settings →
 Trusted Publishing → add GitHub: repository `synapticforge1/universalWasmLoader-rs`, workflow
-`publish.yml` (no environment) — **done by the owner 2026-11-10** (reported; not readable from
-here, so the first release measures it). After the first
-release publishes through it, delete the GitHub secret `CARGO_REGISTRY_TOKEN` and revoke that
-crates.io API token — nothing references it any more. ⚠️ UNMEASURED until that release: the
-exchange on GitHub, and whether crates.io accepts a run started by a push of `main` (the action's
-source restricts no ref; crates.io's docs page did not render, 2026-11-10). If `publish` fails
-there, the fix is the setting, then U12's re-run.
+`publish.yml` (no environment) — **done by the owner 2026-11-10; MEASURED by 1.0.5** (run
+42937116031: the exchange, the publish and the revoke all green; crates.io's `trustpub_data`
+names this repository, run and commit). After the first
+release publishes through it (1.0.5 has), delete the GitHub secret `CARGO_REGISTRY_TOKEN` and
+revoke that crates.io API token — nothing references it any more.
 
 ### How the release path got here (dated)
 
@@ -94,6 +92,35 @@ there, the fix is the setting, then U12's re-run.
   test. UNMEASURED on GitHub until the first release in this order.
 
 ## Release History
+
+### 1.0.5 — 2026-11-11 (patch) — the first release in the owner's order
+
+**What changed:** nothing in the crate's Rust code. The release process (workspace H33 / H34, the
+owner's D1–D3): `bump.ts` requires the level and commits; `release.ts` pushes `main` only; CI
+runs checks → tag → page → publish; crates.io **trusted publishing** replaces the stored token;
+`compat.ts --release` runs the previous tag's tests and the SPEC check in CI too. README §
+Releasing rewritten.
+**How (owner: "release", level patch):** the merge `13cd288` was pushed first. Its run
+**42936711656** was the non-release path: `checks` green ("Is this a release?" → none), and the
+release-only steps and `tag` / `release` / `publish` were skipped. Then `bump.ts patch` made
+`bump to v1.0.5` `ddcbb83` (floor patch, SPEC 4.0.1, v1.0.4's tests 58/58). `release.ts` passed
+every guard and the cold gate and pushed `main` = `ddcbb83` with no tag. **Run 42937116031**,
+every job and step green, first attempt, in the owner's order:
+- `checks`, 01:11:40–01:23:22Z, including `compat --release`.
+- `tag`, 01:23:24–30Z: the annotated `v1.0.5` (object `43ee3df`, tagger `github-actions[bot]`,
+  01:23:27Z), peeling to `ddcbb83`.
+- `release`, 01:23:32–37Z: the page by `github-actions[bot]`, 01:23:35Z, crates.io link on top,
+  `releases/latest`.
+- `publish`, 01:23:40–58Z: OIDC → token, `cargo publish --no-verify`, revoke, read-back.
+
+All times are UTC, 2026-11-11.
+**Read back:** crates.io 1.0.5 created 01:23:55Z, not yanked. **crates.io records the trusted
+publishing:** `trustpub_data` = `{provider: github, repository:
+synapticforge1/universalWasmLoader-rs, run_id: 42937116031, sha: ddcbb83…}`, so release-process
+§ 6's "no attestation exists" is out of date for crates.io. **As a user (U10):** a fresh crate
+pinned to `=1.0.5` from the crates.io index printed `SPEC_VERSION 4.0.1` and `add(3, 4) = 7`,
+and refused `add("x", 1)` and callback-less `imports_50`. **The owner's trusted publisher is
+MEASURED:** crates.io accepted the OIDC token from a run started by a push of `main`.
 
 ### 1.0.4 — 2026-11-09 (patch)
 
