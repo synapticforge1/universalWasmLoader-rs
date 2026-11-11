@@ -25,13 +25,13 @@ types (numbers direct, strings/bools marshalled) without writing any `wasmtime` 
     `.github/workflows/publish.yml`; local `origin` of this repo and of the gitignored
     `upstream/universalWasmLoader-js` clone repointed to `synapticforge1` (`git ls-remote`
     verified). **2026-10-26:** the three `README.md` links to `jrmarcum/wasmtk` → `synapticforge1/wasmtk`.
-    The only `jrmarcum` string left outside `cmem/` is the history note in the `publish.yml` comment.
-  - **Publishing path after the move (letter H20, recorded 2026-10-26):** crates.io publishing uses
-    a **repo secret API token** (`CARGO_REGISTRY_TOKEN`), NOT crates.io trusted publishing (OIDC).
-    So no policy pins the GitHub owner/repository IDs and H20's failure mode (a locked trust policy
-    rejecting the new org) does not apply; the move's only effect was the secret not surviving the
-    transfer (below), already re-added. If trusted publishing is adopted later, create the policy
-    under `synapticforge1` (owner's registry account).
+    Since the 2026-11-10 `publish.yml` rewrite no `jrmarcum` string is left outside `cmem/`
+    (`git grep`, measured).
+  - **Publishing path (letter H20, 2026-10-26; changed 2026-11-10 by the owner's D2):** until
+    1.0.4, crates.io publishing used a repo secret API token (`CARGO_REGISTRY_TOKEN`). From the
+    next release it is **crates.io trusted publishing (OIDC)**: the trusted publisher is created
+    on crates.io under the `synapticforge1` repository (an owner setting, [release.md](release.md)
+    § How a release runs), and the secret is then deleted.
   - Re-verified after the edits, 2026-10-21: `cargo test --locked` → 26/26 + 7 doc-tests.
   - crates.io shows the new `repository` URL only **after the next publish**.
   - The publish workflow is location-agnostic (`${{ github.repository }}`).
@@ -204,188 +204,22 @@ the two **SPEC §10** tests below.
   callbacks, singleton identity, pool acquire/release, `bind`, `wasm_interface!`, and the 2 §10 tests.
   All tests are sync `#[test]` except the two `InstancePool` tests which are `#[tokio::test]`.
 - **Build:** no build step beyond cargo — `src/*.rs` are the source of truth.
-- **Release flow (crates.io):** version lives in **`Cargo.toml`** (`[package].version`, single
-  source of truth). Bump → tag → push → CI publishes.
-  - **Scripts are TypeScript on Bun** (workspace Tooling rule 1 / letter H15: Rust's
-    `cargo -Zscript` builds an executable, so it does not count). `scripts/bump.sh` and
-    `release.sh` were ported to `bump.ts` / `release.ts` on 2026-10-26 under the proof rule:
-    14 cases run against both (11 bump incl. 3 that must fail; 3 release against a throwaway bare
-    remote, comparing stdout, exit code, `Cargo.toml`, remote tags, tag tree and message) — 13
-    identical after normalizing path spelling, commit ids and the new script name in the hint. The
-    14th was a DEFECT in the original: with no version line `bump.sh` exited 1 SILENTLY (its error
-    message was unreachable under `set -eo pipefail`); the port prints it. Details in the commit.
-  - **`bun scripts/bump.ts [patch|minor|major] [--dry-run|-n]`** — raises the first
-    `version = "X.Y.Z"` in `Cargo.toml` (patch is default; last kind argument wins); `--dry-run`
-    prints the next version without writing. Writes temp + rename.
-    **🔒 Gated (workspace letter H6, SemVer 2.0.0 + the compatibility gate, 2026-10-26):** it
-    runs `cargo semver-checks check-release` against tag `v<current>` (crates.io if no tag) for
-    patch, then minor, then major; the first accepted is the FLOOR, printed with the lints that
-    set it; a lower bump is refused. CI repeats it on the tag (`publish.yml` step "Compatibility
-    gate", registry baseline). Measured 2026-10-26: clean tree → floor patch (229 checks); mutant
-    "`pub fn create_singleton` → private" → floor **major** (`function_missing`), patch and minor
-    refused, and the CI form exits 100 — a break needs MAJOR even at 0.x with an explicit release
-    type. Blind spot: it sees breaks only; an addition floors at patch, so minor-for-new-API is
-    the releaser's call. Needs `cargo install cargo-semver-checks --locked` (0.51.0 here).
-    **Also gated (2026-10-26, the loaders' part of H6):** (a) BEHAVIOUR — the tag's `tests/`
-    (unmodified, its own fixtures) run against the new `src/` in a throwaway `.compat/` crate
-    (gitignored, removed after); red refuses a patch or minor, a major may proceed. Measured: vs
-    `v0.1.1` 26 passed; mutant "bool decode `!= 0` → `== 0`" (no API change, so semver-checks is
-    blind) → 17 passed / 9 failed, minor refused, major allowed. (b) SPEC — `SPEC_VERSION` must
-    equal `Version:` in -js `origin/main:SPEC.md`, read from the fetched `upstream/` clone (absent
-    clone = error); mutant `3.1.0` refused. A `SPEC_VERSION` change since the tag raises the floor
-    by its level — **MEASURED 2026-11-08 at the first SPEC change (3.0.0 → 4.0.0, branch
-    `spec-4.0.0`):** `bump.ts minor --dry-run` → floor major "set by: SPEC 3.0.0 -> 4.0.0", minor
-    refused, exit 1; `major --dry-run` → allowed, v0.2.0's tests 30 passed / 0 failed, exit 0.
-    The branch fired ALONE: cargo-semver-checks 0.51.0 floored that diff at patch although
-    `wit_parser::parse_wit` changed its return type `ParsedWit` → `Result<ParsedWit>` — it has no
-    lint for a changed return type, a second blind spot beside additions. (c) After writing `Cargo.toml` it runs
-    `cargo update --workspace --offline` so `Cargo.lock` carries the new version (CI is `--locked`).
-  - **`bun scripts/release.ts`** — reads the `Cargo.toml` version; **refuses, before committing
-    anything, when `vX.Y.Z` exists locally (`rev-parse --verify`) or on `origin`
-    (`ls-remote --exit-code`: 0 exists, 2 absent, anything else → refuse: origin could not be
-    asked)**; then commits any pending bump of `Cargo.toml`/`Cargo.lock`, `git tag vX.Y.Z` +
-    `git push` + `git push origin vX.Y.Z` — no `-f` anywhere (★ 7.11: a tag publishes, a published
-    version is immutable). Never runs `cargo publish` locally — the tag push triggers CI.
-    Fixed 2026-11-08 (it force-moved the tag, inherited from `release.sh`). Proof against a
-    throwaway bare remote: fresh tag → exit 0, remote tag = HEAD; re-run → refused (local);
-    local tag deleted + a new commit → refused (origin), remote tag unchanged, no local tag left;
-    unreachable origin → refused (ls-remote 128); the OLD script on that same state → exit 0 and
-    the remote tag MOVED to the new commit (the defect).
-  - **`.github/workflows/publish.yml`** — triggered on `push: tags: ["v*"]`. **`run:`-only**
-    (the Actions policy under the previous `jrmarcum` owner permitted only `jrmarcum`-owned
-    actions; any third-party `uses:` step → `startup_failure`, nothing runs, nothing reaches
-    crates.io). **Since the 2026-10-21 move the governing policy is the `synapticforge1` org's
-    — UNMEASURED here; keep `run:`-only until it is checked** (loader-dotnet's run 42441589123
-    shows the org accepts hash-pinned `uses:`, but this repo needs none). Do NOT reintroduce `uses:`.
-    **Since 2026-11-08 (workspace C30, owner: "C30 is required in this project") three jobs**,
-    top-level `permissions: {}`:
-    - `checks` {contents: read} — clone WITHOUT credentials (was `x-access-token:` in the URL, so
-      the write token sat in `.git/config` beside third-party build scripts); HEAD must equal
-      `github.sha`; the tag must equal `v` + the Cargo.toml version; Rust **1.99.1** pinned through
-      the runner's rustup (verifies the signed manifest; was `curl | sh` of an unpinned installer
-      and "stable"); build → test → `cargo install cargo-semver-checks --version 0.51.0 --locked`
-      + `check-release`. All third-party code runs here.
-    - `publish` {contents: read} — `git ls-remote` the tag (peeled) = `github.sha` or refuse; a
-      fresh tokenless clone; probe `crates.io/api/v1/crates/universal-wasm-loader/<v>` (200 →
-      skip the upload, 404 → publish, anything else → fail); `cargo publish --locked --no-verify`
-      with `CARGO_REGISTRY_TOKEN` in that ONE step. `--no-verify` is the point: publish's verify
-      step rebuilt the crate, running dependencies' build scripts with the registry token in env.
-    - `release` {contents: write} — no build; runs when `checks` passed and `publish` was not
-      cancelled, EVEN IF `publish` failed (workspace C34: a failure after the upload must not
-      strand the GitHub Release); waits up to 5 min for crates.io to answer 200 for the version.
-      **Since 2026-11-09 (workspace H30: no GitHub CLI, in CI too)** it then clones without
-      credentials (HEAD = `github.sha`), installs Bun **1.4.4** pinned by sha256 (`bf8ccbfb…`,
-      matched in Bun's SHASUMS256.txt AND loader-go's `release.yml`), and runs
-      `bun scripts/github-release.ts` with `GITHUB_TOKEN`: the tag must exist on GitHub and peel
-      to `github.sha` (annotated tags followed) — `POST /releases` would otherwise CREATE a missing
-      tag from the default branch, which the CLI's `--verify-tag` used to refuse; an existing
-      release → exit 0; else `POST /releases` {generate_release_notes} → 201, then read back.
-      Until 1.0.1 this step was the CLI (`release view` / `release create --verify-tag`).
-      Proof 2026-11-09 (scratch, deleted): against real GitHub read-only with `--dry-run` —
-      `v1.0.1` + its commit → "already exists" 0, `v1.0.1` + 1.0.0's commit → refused 1, `v9.9.9`
-      → refused 1; against a mock API (`GITHUB_API_URL`) — annotated tag peeled, dry-run and
-      no-token send no POST, a 422 POST → 1, create → 201 with `Bearer` + the body then read
-      back, re-run → no POST. **MEASURED on GitHub 2026-11-09** by run 42567711837 attempt 2
-      (the owner's "Re-run failed jobs"): every `release` step green; GitHub Release `v1.0.2`
-      created by `github-actions[bot]` with generated notes; tag `v1.0.2` still `027df43` (no tag
-      created or moved).
-      **Since 2026-11-09 later (workspace H32, the release-page recipe; C40's time limit):**
-      the `release` job checks out NOTHING. It fetches the one file
-      `raw.githubusercontent.com/<repo>/<github.sha>/scripts/github-release.ts`
-      (`curl --max-time 60 --retry 3`; that URL serves the exact git blob at a commit, measured:
-      `v1.0.3`'s copy = blob `7e62301`), installs the pinned Bun and runs it. The script keeps H32's
-      order: (1) the tag peels to `github.sha`; (2) an existing page = done, NOTHING written;
-      (3) POST with `crates.io: https://crates.io/crates/<crate>/<v>` on top of
-      `generate_release_notes`, read back (the tag, `draft: false`), then the tag is peeled AGAIN.
-      Every request has one 30 s limit, request to last byte (`AbortSignal.timeout`;
-      `RELEASE_TIMEOUT_MS`); the two crates.io curls got `--max-time 30`. **Tests, committed:**
-      `scripts/github-release.test.ts` (`bun test scripts/`, run in `checks` before anything
-      publishes), 12 cases on a `Bun.serve` mock that records every request, the script as a
-      `Bun.spawn` child: lightweight / annotated create (link on top, second peel AFTER the POST);
-      missing / other-commit tag → no POST; existing page → no write; POST 422; draft read-back;
-      tag moved by the POST; stalled API → `timed out after 300 ms`; dry-run; no token; non-`vX.Y.Z`
-      tag → no request. Inverted by four one-line mutants, each red only in its own case: no sha
-      check, no existing-page stop, no time limit, no second peel. Real GitHub, read-only, the
-      script ALONE in an empty folder: `v1.0.3` at `45d9f59` → "already exists, nothing written";
-      at `027df43` → refused; `v9.9.9` → refused. **MEASURED on GitHub by 1.0.4** (run
-      42680215036): "Test the release-page script" green in `checks`; `release` green with no
-      checkout ("Fetch the release-page script at the tagged commit", then "Create the GitHub
-      Release page (REST API)"); page by `github-actions[bot]` with the crates.io link on top.
-    Checked locally 2026-11-08 (scratch scripts, deleted): Bun.YAML parses it to that graph, 0
-    `uses:`, the secret in one step; the tag step against GitHub: right commit 0, wrong commit 1,
-    absent tag 1; the probe: 0.2.0 → 200, 1.0.0 → 404; `cargo +1.99.1 test --locked` 66/66.
-    Measured on GitHub by 1.0.0's run 42549004225 (all jobs green; release record below).
-  - **`1.0.0` (2026-11-08) = SPEC 4.0.0 + the C30 workflow.** Owner: "yes release 1.0.0. yes
-    merge and push". `bump.ts major` through the full gate: floor major (set by `SPEC 3.0.0 ->
-    4.0.0`), v0.2.0's tests 30/30 on the new src, `Cargo.lock` = 1.0.0 (one line). README
-    dependency lines `"0.2"` → `"1.0"`, Breaking Changes row stamped `1.0.0`. Release commit
-    `9240b11` = tag `v1.0.0` = `origin/main` (`ls-remote`). **Run 42549004225: green in all
-    three jobs and every step** — the first run of the C30 split, so it is MEASURED now (the
-    pinned rustup install, the tokenless clones, the tag check, the crates.io probe, `--no-verify`
-    publish, the wait-then-CLI release, replaced by the REST script since). Read back: crates.io `max_version` **1.0.0** (created
-    2026-11-09T02:16:03Z UTC); GitHub Release `v1.0.0` published 02:16:12Z. As a user: a fresh
-    scratch crate depending on `universal-wasm-loader = "1.0"` (resolved from the crates.io
-    index) prints `SPEC_VERSION 4.0.0`, `add(3, 4) = 7`, and refuses `add("x", 1)` and
-    `imports_50` without callbacks, each with its message.
-  - **`1.0.1` (2026-11-08, owner: "bump the version and push and release")** — a patch carrying
-    the `release.ts` fix (`afd09ca`; `scripts/` is excluded from the package, so the crate's code
-    equals 1.0.0's; the packaged README gains the release note). `bump.ts patch`: floor patch,
-    v1.0.0's tests 58/58 on the new src. `bump version to v1.0.1` `c74df9e` = tag `v1.0.1` =
-    `origin/main`, cut by the FIXED `release.ts` (checked the tag absent, no `-f`). Run
-    **42552859531** green in all three jobs (`checks` 10.5 min — wasmtime and cargo-semver-checks
-    compile from source; `publish` 15 s; `release` 4 s). Read back: crates.io `max_version`
-    **1.0.1** (created 2026-11-09T02:58:14Z UTC), GitHub Release `v1.0.1`.
-  - **`1.0.2` (2026-11-09, owner: "bump and release")** — a patch carrying the H30 release step
-    (`a8459ee`; `scripts/` and `.github/` are excluded from the package, so the crate's code
-    equals 1.0.1's). `bump.ts patch`: floor patch, v1.0.1's tests 58/58. `bump version to v1.0.2`
-    `027df43` = tag `v1.0.2` = `origin/main`. Run **42567711837**: `checks` and `publish` green,
-    crates.io `max_version` **1.0.2** (read back). **`release` FAILED at "Install Bun"**: curl exit
-    22, because GitHub's release-download service answered **504 Gateway Time-out**. Measured from
-    here the same hour: the same URL gave 504, then 200 three times, while another asset of that
-    release still gave 504. A GitHub-side flake, not this repo's code. So the GitHub Release
-    `v1.0.2` was NOT created, and `scripts/github-release.ts` has still not run on GitHub.
-    Hardening in `publish.yml`: the download retries (`--retry 6 --retry-delay 10
-    --retry-all-errors`, 30 s connect, 300 s total); the sha256 check still decides what runs.
-    Measured locally: four 504s, then success, `bun.zip: OK`. A re-run of the failed job uses
-    the tagged commit's workflow (no retry), so it succeeds only while the download serves.
-    **The owner re-ran it (attempt 2, 2026-11-09): `release` green in every step**, and the
-    GitHub Release `v1.0.2` was published 05:45:51Z by the script (read back through the API).
-    1.0.2 is now complete on crates.io and GitHub.
-  - **`1.0.3` (2026-11-09, owner: "commit, push then release")** — a patch. Since `v1.0.2` only
-    `.github/` (the Bun-download retry, `bd80a0d`) and `cmem/` changed, and neither is in the
-    package, so the crate's code equals 1.0.2's. `bump.ts patch`: floor patch, v1.0.2's tests
-    58/58. `bump version to v1.0.3` `45d9f59` = tag `v1.0.3` = `origin/main`. Run
-    **42642487686** green in all three jobs and every step, in ONE attempt: the first GitHub run
-    of the retrying download, and the first all-green run with the REST release script. Read
-    back: crates.io `max_version` **1.0.3** (created 2026-11-09T15:23:58Z UTC); GitHub Release
-    `v1.0.3` published 15:24:09Z by `github-actions[bot]`; tag `v1.0.3` = `45d9f59`.
-  - **`1.0.4` (2026-11-09, owner: "commit, push then release")** — a patch: H32's release job
-    (`7b3c851`) and `SPEC_VERSION` 4.0.1 (`d72f7b6`, a clarification; no behaviour change). The
-    first `bump.ts patch` REFUSED on the SPEC check (reference 4.0.1, ours 4.0.0); after the claim
-    moved, the floor was patch "set by: SPEC 4.0.0 -> 4.0.1" — the SPEC branch's first PATCH-level
-    firing — and v1.0.3's tests 58/58. `bump version to v1.0.4` `314a959` = tag `v1.0.4` =
-    `origin/main`. Run **42680215036** green in all three jobs and every step, in one attempt.
-    Read back: crates.io `max_version` **1.0.4** (created 2026-11-09T19:14:47Z UTC); GitHub
-    Release `v1.0.4` published 19:14:56Z by `github-actions[bot]`, not a draft, body
-    `crates.io: https://crates.io/crates/universal-wasm-loader/1.0.4` then "Full Changelog
-    v1.0.3...v1.0.4"; `releases/latest` = v1.0.4; tag `v1.0.4` = `314a959` (lightweight, unmoved).
-  - **On crates.io: `0.1.0` (2026-06-24), `0.1.1` (2026-10-22), `0.2.0` (2026-10-26T22:53Z),
-    `1.0.0` (2026-11-09T02:16Z), `1.0.1` (2026-11-09T02:58Z), `1.0.2` (2026-11-09),
-    `1.0.3` (2026-11-09T15:24Z), `1.0.4` (2026-11-09T19:14Z).**
-    0.2.0 = the minor that adds `SPEC_VERSION`; bumped through the full gate (floor patch,
-    `v0.1.1` tests 26/26 on the new src, SPEC 3.0.0 = reference), bump commit `c8f2e11`, tag
-    `v0.2.0`; run `40414680446` green on every step incl. the new compatibility gate; read back
-    from the crates.io API (`max_version` 0.2.0) and the GitHub release `v0.2.0`. The first
-    release from the `synapticforge1` org after the 0.1.1 secret fix; the org's Actions policy
-    still unprobed for `uses:` (the workflow stays `run:`-only). Every release must bump
-    `Cargo.toml` first (`bun scripts/bump.ts`); `Cargo.lock` must carry the same version (CI uses
-    `--locked`).
-  - **One-time owner setup (done; the secret was re-added after the 2026-10-21 repo move):**
-    1. **`CARGO_REGISTRY_TOKEN` GitHub repo secret** — from a crates.io API token
-       (<https://crates.io/settings/tokens>, publish scope); add under repo Settings → Secrets
-       and variables → Actions, named exactly `CARGO_REGISTRY_TOKEN`.
-    2. **Crate name `universal-wasm-loader`** must be available (first publish) or already owned
-       by the publishing crates.io account.
+- **Releases: see [release.md](release.md)** (🔒 the ONE record, owner 2026-11-10, workspace H33
+  D3): how a release runs — `bun scripts/bump.ts <level>` (commits `bump to vX.Y.Z`), then
+  `bun scripts/release.ts` (pushes `main` only), then CI: checks → tag → Release page → crates.io
+  trusted publishing — and § "Release History", newest first (1.0.4 … 0.1.0). The detailed records
+  that stood here until 2026-11-10 (the bump / release scripts' measurements, the C30 / H30 / H32
+  workflow steps, each release's read-backs) are summarised there; their full text is in git
+  (`git show 3fa32fa:cmem/overview.md`).
+- **Scripts are TypeScript on Bun** (workspace Tooling rule 1 / letter H15): `scripts/bump.ts`,
+  `release.ts`, `compat.ts` (the release-mode gate, shared by bump, release and CI),
+  `github-release.ts` (state / tag / page), `crates-io.ts` (has / token / revoke / readback), and
+  their tests (`bun test scripts/`).
+- **Measured facts kept from the old records:** cargo-semver-checks 0.51.0 sees breaks only (an
+  addition floors at patch) and has no lint for a changed return type (`parse_wit` →
+  `Result`, 2026-11-08 — the SPEC check set that major); the previous-tag-tests check caught a
+  "bool decode `!= 0` → `== 0`" mutant semver-checks could not see (2026-10-26); the 0.1.1 run
+  showed a repo secret does not survive an org transfer (2026-10-21) — moot since D2 retires it.
 
 ## Notable invariants / traps (carried from CLAUDE.md)
 
